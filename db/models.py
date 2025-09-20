@@ -70,6 +70,7 @@ class ContractorUser(SQLModel, table=True):
     phone: str = Field(max_length=20, default=None, nullable=False)
     id_number: str = Field(max_length=50, default=None, nullable=False)
     work_type: str = Field(max_length=100, default=None, nullable=False)
+    role_type: str = Field(max_length=10, default="normal", nullable=False)
     personal_photo: str = Field(max_length=255, default=None, nullable=False)
     status: bool = Field(default=False, nullable=False)
 

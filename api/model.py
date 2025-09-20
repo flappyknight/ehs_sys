@@ -92,6 +92,7 @@ class ContractorUser(BaseModel):
     id_number: str
     work_type: str
     personal_photo: str
+    role_type: str
     status: bool
 
 
@@ -99,6 +100,5 @@ class Department(BaseModel):
     department_id: int = None
     enterprise_id: int
     name: str
-    parent_id: int
-
+    parent_id: int = None
     pass
