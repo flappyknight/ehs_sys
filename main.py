@@ -95,9 +95,11 @@ async def read_users_me(token: str = Depends(get_token_from_cookie)):
     user_type = payload.get("user_type")
     user = await crud.get_user(app.state.engine, username, user_type)
     if user.user_type == UserType.contractor:
-        return user.contractor_user
+        user.contractor_user = user.contractor_user
+        return user
     elif user.user_type == UserType.enterprise:
-        return user.enterprise_user
+        user.enterprise_user = user.enterprise_user
+        return user
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user

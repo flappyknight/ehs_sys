@@ -142,9 +142,8 @@ async def create_contractor_user(engine, contractor_user: api.ContractorUser, us
     return contractor_user_db
 
 async def create_project(engine, project: api.Project):
-    """创建承包商项目"""
     project_db = ContractorProject(
-        constractor_id=project.contractor_id,  # 注意数据库字段名是constractor_id
+        contractor_id=project.contractor_id,  # 注意数据库字段名是constractor_id
         enterprise_id=project.enterprise_id,
         project_name=project.project_name,
         leader_name=project.project_leader,
@@ -167,13 +166,12 @@ async def create_plan(engine, plan: api.Plan):
         session.add(plan_db)
         await session.flush()
         await session.refresh(plan_db)
-        plan_workers = [EntryPlanUser(roject_id=plan_db.project_id, plan_date=plan_db.plan_id, user_id=cu_id)
+        plan_workers = [EntryPlanUser(project_id=plan_db.project_id, plan_id=plan_db.plan_id,
+                                      plan_date=plan_db.plan_id, user_id=cu_id)
                         for cu_id in plan.workers]
         session.add_all(plan_workers)
-        session.commit()
+        await session.commit()
     return plan_db
-
-
 
 
 # 使用示例

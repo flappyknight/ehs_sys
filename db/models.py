@@ -11,7 +11,7 @@ class User(SQLModel, table=True):
     password_hash: str = Field(max_length=255, default=None, nullable=False)
     user_type: str = Field(max_length=20, default=0, nullable=False) # 约束检查 in [enterprise, contractor, admin]
     enterprise_staff_id: int = Field(default=None, foreign_key="enterprise_user.user_id", nullable=True)
-    contractor_staff_id: int = Field(default=None, foreign_key="constractor_user.user_id", nullable=True)
+    contractor_staff_id: int = Field(default=None, foreign_key="contractor_user.user_id", nullable=True)
 
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
@@ -49,7 +49,7 @@ class Contractor(SQLModel, table=True):
 class ContractorProject(SQLModel, table=True):
     __tablename__ = 'contractor_project'
     project_id: int = Field(default=None, primary_key=True)
-    constractor_id: int = Field(default=None, foreign_key="contractor.contractor_id", nullable=False)
+    contractor_id: int = Field(default=None, foreign_key="contractor.contractor_id", nullable=False)
     enterprise_id: int = Field(default=None, foreign_key="company.company_id", nullable=False)
     project_name: str = Field(max_length=255, default=None, nullable=False)
     leader_name: str = Field(max_length=100, default=None, nullable=False)
@@ -63,7 +63,7 @@ class ContractorProject(SQLModel, table=True):
 
 
 class ContractorUser(SQLModel, table=True):
-    __tablename__ = 'constractor_user'
+    __tablename__ = 'contractor_user'
     user_id: int = Field(default=None, primary_key=True)
     contractor_id: int = Field(default=None, foreign_key="contractor.contractor_id", nullable=False)
     name: str = Field(max_length=100, default=None, nullable=False)
@@ -114,7 +114,7 @@ class EntryPlan(SQLModel, table=True):
     __tablename__ = 'entry_plan'
     plan_id: int = Field(default=None, primary_key=True)
     project_id: int = Field(default=None, foreign_key="contractor_project.project_id", nullable=False)
-    plan_time: datetime = Field(default=None, nullable=False)
+    plan_date: date = Field(default=None, nullable=False)
 
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
@@ -129,9 +129,8 @@ class EntryPlanUser(SQLModel, table=True):
     id: int = Field(default=None, primary_key=True)
     project_id: int = Field(default=None, foreign_key="contractor_project.project_id", nullable=False)
     plan_id: int = Field(default=None, foreign_key="entry_plan.plan_id", nullable=False)
-    user_id: int = Field(default=None, foreign_key="contractor.user_id", nullable=False)
+    user_id: int = Field(default=None, foreign_key="contractor_user.user_id", nullable=False)
     created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
 
     plan: EntryPlan = Relationship(back_populates="workers")
 
