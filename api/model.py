@@ -17,7 +17,10 @@ class PermissionLevel(IntEnum):
     normal = 1
     advanced = 2
     admin =3
-    pass
+
+    @classmethod
+    def map(cls, key:str):
+        return getattr(cls, key)
 
 
 class ApprovalLevel(IntEnum):
@@ -43,7 +46,7 @@ class EnterpriseUser(BaseModel):
     phone: str = None
     email: str = None
     position: str = None
-    role_type: PermissionLevel = PermissionLevel.normal
+    role_type: str = "normal"
     approval_level: ApprovalLevel = ApprovalLevel.level_1
     status: bool = True
     pass
