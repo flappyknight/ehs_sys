@@ -1,0 +1,4 @@
+web/**
+.venv
+.idea
+.vscode
