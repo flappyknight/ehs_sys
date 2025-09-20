@@ -109,17 +109,17 @@ async def read_users_me(token: str = Depends(get_token_from_cookie)):
 
 async def authenticate_enterprise_level(user: User=Depends(read_users_me)):
     if user.user_type != UserType.admin and user.user_type != UserType.enterprise:  # 无权访问该接口
-        return HTTPException(status_code=401, detail="Access to this api is not permitted! higher access level needed!")
+        raise HTTPException(status_code=401, detail="Access to this api is not permitted! higher access level needed!")
     if user.user_type == UserType.enterprise and PermissionLevel.map(user.enterprise_user.role_type) < PermissionLevel.manager:
-        return HTTPException(status_code=401, detail="Access to this api is not permitted! higher access level needed!")
+        raise HTTPException(status_code=401, detail="Access to this api is not permitted! higher access level needed!")
     return user
 
 async def authenticate_contractor_level(user: User=Depends(read_users_me)):
     if user.user_type != UserType.admin:
         if user.user_type == UserType.contractor and PermissionLevel.map(user.contractor_user.role_type) < PermissionLevel.approver:
-            return HTTPException(status_code=401, detail="Access to this api is not permitted! higher access level needed!")
+            raise HTTPException(status_code=401, detail="Access to this api is not permitted! higher access level needed!")
         if user.user_type == UserType.enterprise and PermissionLevel.map(user.enterprise_user.role_type) < PermissionLevel.site_staff:
-            return HTTPException(status_code=401, detail="Access to this api is not permitted! higher access level needed!")
+            raise HTTPException(status_code=401, detail="Access to this api is not permitted! higher access level needed!")
     return user
 
 
