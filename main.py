@@ -4,7 +4,7 @@ from typing import AsyncIterator, Union, Annotated
 
 
 from fastapi import FastAPI, Depends, HTTPException, status, Cookie, Response, Query
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm
 
 from contextlib import asynccontextmanager
 import jwt
@@ -15,7 +15,6 @@ from db import crud
 from core.init_admin import init_admin_user
 from core import password as pwd
 from config import settings
-# from db.models import User
 from api.model import *
 
 
@@ -35,9 +34,6 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(lifespan=lifespan)
-
-_ = OAuth2PasswordBearer(tokenUrl="token")
-
 
 async def authenticate_user(username: str, password: str):
     user = await crud.get_user(app.state.engine, username)
@@ -99,9 +95,9 @@ async def read_users_me(token: str = Depends(get_token_from_cookie)):
     user_type = payload.get("user_type")
     user = await crud.get_user(app.state.engine, username, user_type)
     if user.user_type == UserType.contractor:
-        print(user.contractor_user)
+        return user.contractor_user
     elif user.user_type == UserType.enterprise:
-        print(user.enterprise_user)
+        return user.enterprise_user
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
