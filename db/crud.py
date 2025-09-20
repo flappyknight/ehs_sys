@@ -1,3 +1,4 @@
+from datetime import datetime
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload  # 添加这个导入
 
@@ -65,7 +66,6 @@ async def create_enterprise_user(engine, enterprise_user: api.EnterpriseUser, us
 
 async def create_user(engine, username: str, password_hash: str, user_type: str,
                              enterprise_staff_id: int = None, contractor_staff_id: int = None, session=None) -> User:
-    """简化版的用户创建函数"""
     user = User(
         username=username,
         password_hash=password_hash,
@@ -88,7 +88,6 @@ async def create_user(engine, username: str, password_hash: str, user_type: str,
 
 
 async def create_department(engine, department: api.Department):
-    """创建部门"""
     department_db = Department(
         company_id=department.enterprise_id,
         name=department.name,
@@ -102,7 +101,6 @@ async def create_department(engine, department: api.Department):
 
 
 async def create_contractor(engine, contractor: api.Contractor):
-    """创建承包商"""
     contractor_db = Contractor(
         license_file=contractor.license_file,
         company_name=contractor.company_name,
@@ -114,12 +112,13 @@ async def create_contractor(engine, contractor: api.Contractor):
     )
     async with get_session(engine) as session:
         session.add(contractor_db)
-        await session.commit()
+        await session.flush()
         await session.refresh(contractor_db)
+
     return contractor_db
 
 
-async def create_contractor_user(engine, contractor_user: api.ContractorUser):
+async def create_contractor_user(engine, contractor_user: api.ContractorUser, user: User|None=None):
     """创建承包商用户"""
     contractor_user_db = ContractorUser(
         contractor_id=contractor_user.contractor_id,
@@ -133,9 +132,49 @@ async def create_contractor_user(engine, contractor_user: api.ContractorUser):
     )
     async with get_session(engine) as session:
         session.add(contractor_user_db)
+        if user is not None:
+            await session.flush()
+            await session.refresh(contractor_user_db)
+            await create_user(engine, user.username, user.password_hash, user_type=user.user_type,
+                              enterprise_staff_id=contractor_user_db.user_id, session=session)
         await session.commit()
         await session.refresh(contractor_user_db)
     return contractor_user_db
+
+async def create_project(engine, project: api.Project):
+    """创建承包商项目"""
+    project_db = ContractorProject(
+        constractor_id=project.contractor_id,  # 注意数据库字段名是constractor_id
+        enterprise_id=project.enterprise_id,
+        project_name=project.project_name,
+        leader_name=project.project_leader,
+        leader_phone=project.leader_phone
+    )
+    
+    async with get_session(engine) as session:
+        session.add(project_db)
+        await session.commit()
+        await session.refresh(project_db)
+    return project_db
+
+async def create_plan(engine, plan: api.Plan):
+    plan_db = EntryPlan(
+        project_id=plan.project_id,
+        plan_date=plan.plan_date
+    )
+
+    async with get_session(engine) as session:
+        session.add(plan_db)
+        await session.flush()
+        await session.refresh(plan_db)
+        plan_workers = [EntryPlanUser(roject_id=plan_db.project_id, plan_date=plan_db.plan_id, user_id=cu_id)
+                        for cu_id in plan.workers]
+        session.add_all(plan_workers)
+        session.commit()
+    return plan_db
+
+
+
 
 # 使用示例
 async def main():

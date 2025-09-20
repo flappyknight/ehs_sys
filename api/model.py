@@ -1,3 +1,4 @@
+from typing import List
 from pydantic import BaseModel
 from enum import Enum, IntEnum
 
@@ -84,9 +85,8 @@ class Project(BaseModel):
 class Plan(BaseModel):
     plan_id: int = None
     project_id: int
-    project_name: str
     plan_date: str
-
+    workers: List[int]
     pass
 
 class PlanWorker(BaseModel):

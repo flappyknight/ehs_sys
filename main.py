@@ -154,6 +154,27 @@ async def add_contractor(contractor: Contractor):
 
 
 @app.post("/contractor/add_user/", dependencies=[Depends(authenticate_contractor_level)])
-async def add_contractor_user(contractor_user: ContractorUser):
-    contractor_user_db = await crud.create_contractor_user(app.state.engine, contractor_user)
+async def add_contractor_user(contractor_user: ContractorUser, create_account: bool=Query(default=True)):
+    try:
+        if create_account:
+            user = User(
+                user_type=UserType.enterprise,
+                username=contractor_user.phone,
+                password_hash=pwd.get_password_hash(contractor_user.phone[-6:])
+            )
+            contractor_user_db = await crud.create_contractor_user(app.state.engine, contractor_user, user)
+        else:
+            contractor_user_db = await crud.create_contractor_user(app.state.engine, contractor_user)
+    except Exception as e:
+        return HTTPException(status_code=500, detail="Failed to create this enterprise user: " + str(e))
     return contractor_user_db
+
+@app.post("/contractor/add_project", dependencies=[Depends(authenticate_enterprise_level)])
+async def add_project(project: Project):
+    project_db = await crud.create_project(app.state.engine, project)
+    return project_db
+
+@app.post("/contractor/add_plan/", dependencies=[Depends(authenticate_contractor_level)])
+async def add_plan(plan: Plan):
+    plan_db = await crud.create_plan(app.state.engine, plan)
+    return plan_db
