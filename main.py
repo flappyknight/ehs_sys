@@ -3,7 +3,7 @@ from datetime import timedelta, datetime, timezone
 from typing import AsyncIterator, Union, Annotated
 
 
-from fastapi import FastAPI, Depends, HTTPException, status, Cookie, Response
+from fastapi import FastAPI, Depends, HTTPException, status, Cookie, Response, Query
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 from contextlib import asynccontextmanager
@@ -15,7 +15,7 @@ from db import crud
 from core.init_admin import init_admin_user
 from core import password as pwd
 from config import settings
-from db.models import User
+# from db.models import User
 from api.model import *
 
 
@@ -73,7 +73,7 @@ async def login_for_access_token(response: Response,
     else:
         access_token_expires = settings.access_token_expire_minutes
         access_token = create_access_token(
-            data={"sub": user.username}, expires_delta=access_token_expires
+            data={"sub": user.username, "user_type": user.user_type}, expires_delta=access_token_expires
         )
         response.set_cookie(
             key="access_token",
@@ -96,7 +96,12 @@ async def read_users_me(token: str = Depends(get_token_from_cookie)):
     except InvalidTokenError:
         raise HTTPException(status_code=401, detail="Not authenticated")
     username = payload.get("sub")
-    user = await crud.get_user(app.state.engine, username)
+    user_type = payload.get("user_type")
+    user = await crud.get_user(app.state.engine, username, user_type)
+    if user.user_type == UserType.contractor:
+        print(user.contractor_user)
+    elif user.user_type == UserType.enterprise:
+        print(user.enterprise_user)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
@@ -105,15 +110,15 @@ async def read_users_me(token: str = Depends(get_token_from_cookie)):
 async def authenticate_enterprise_level(user: User=Depends(read_users_me)):
     if user.user_type != UserType.admin and user.user_type != UserType.enterprise:  # 无权访问该接口
         return HTTPException(status_code=401, detail="Access to this api is not permitted! higher access level needed!")
-    if user.user_type == UserType.enterprise and PermissionLevel.map(user.enterprise_user.role_type) < PermissionLevel.advanced:
+    if user.user_type == UserType.enterprise and PermissionLevel.map(user.enterprise_user.role_type) < PermissionLevel.manager:
         return HTTPException(status_code=401, detail="Access to this api is not permitted! higher access level needed!")
     return user
 
 async def authenticate_contractor_level(user: User=Depends(read_users_me)):
     if user.user_type != UserType.admin:
-        if user.user_type == UserType.contractor and PermissionLevel.map(user.contractor_user.role_type) < PermissionLevel.advanced:
+        if user.user_type == UserType.contractor and PermissionLevel.map(user.contractor_user.role_type) < PermissionLevel.approver:
             return HTTPException(status_code=401, detail="Access to this api is not permitted! higher access level needed!")
-        if user.user_type == UserType.enterprise and PermissionLevel.map(user.enterprise_user.role_type) < PermissionLevel.admin:
+        if user.user_type == UserType.enterprise and PermissionLevel.map(user.enterprise_user.role_type) < PermissionLevel.site_staff:
             return HTTPException(status_code=401, detail="Access to this api is not permitted! higher access level needed!")
     return user
 
@@ -125,10 +130,20 @@ async def add_enterprise(enterprise: Enterprise):
 
 
 @app.post("/enterprise/add_user/", dependencies=[Depends(authenticate_enterprise_level)])
-async def add_enterprise_user(enterprise_user: EnterpriseUser):
-    enterprise_user_db =  await crud.create_enterprise_user(app.state.engine, enterprise_user)
+async def add_enterprise_user(enterprise_user: EnterpriseUser, create_account: bool=Query(default=True)):
+    try:
+        if create_account:
+            user = User(
+                user_type=UserType.enterprise,
+                username=enterprise_user.phone,
+                password_hash=pwd.get_password_hash(enterprise_user.phone[-6:])
+            )
+            enterprise_user_db = await crud.create_enterprise_user(app.state.engine, enterprise_user, user)
+        else:
+            enterprise_user_db = await crud.create_enterprise_user(app.state.engine, enterprise_user)
+    except Exception as e:
+        return HTTPException(status_code=500, detail="Failed to create this enterprise user: " + str(e))
     return enterprise_user_db
-
 
 @app.post("/enterprise/add_department/", dependencies=[Depends(authenticate_enterprise_level)])
 async def add_department(department: Department):

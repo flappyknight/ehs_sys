@@ -98,7 +98,7 @@ class EnterpriseUser(SQLModel, table=True):
     name: str = Field(max_length=100, default=None, nullable=False)
     phone: str = Field(max_length=20, default=None, nullable=False)
     email: str = Field(max_length=100, default=None, nullable=False)
-    position: int = Field(default=0, nullable=True)
+    position: str = Field(max_length=100, default=None, nullable=True)
     role_type: str = Field(max_length=100, default=None, nullable=False)
     approval_level: int = Field(default=4, nullable=False)
     status: bool = Field(default=True, nullable=False)

@@ -14,9 +14,9 @@ class UserType(str, Enum):
 
 
 class PermissionLevel(IntEnum):
-    normal = 1
-    advanced = 2
-    admin =3
+    manager = 3
+    approver = 2
+    site_staff = 1
 
     @classmethod
     def map(cls, key:str):
@@ -29,6 +29,14 @@ class ApprovalLevel(IntEnum):
     level_3 = 3
     pass
 
+class User(BaseModel):
+    user_id: int = None
+    user_type: UserType
+    username: str
+    password_hash: str
+    enterprise_staff_id: int = None
+    contractor_staff_id: int = None
+    pass
 
 class Enterprise(BaseModel):
     enterprise_id: int =None

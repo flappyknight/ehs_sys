@@ -1,12 +1,18 @@
 from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload  # 添加这个导入
 
 from db.models import *
 from db.connection import get_session
 from api import model as api
 
 
-async def get_user(engine, username) -> User:
-    statement = select(User).where(User.username == username)
+async def get_user(engine, username, user_type: str=None) -> User:
+    if user_type == api.UserType.contractor:
+        statement = select(User).where(User.username == username).options(selectinload(User.contractor_user))
+    elif user_type == api.UserType.enterprise:
+        statement = select(User).where(User.username == username).options(selectinload(User.enterprise_user))
+    else:
+        statement = select(User).where(User.username == username)
     async with get_session(engine) as session:
         result = await session.exec(statement)
         user = result.first()[0]
@@ -32,7 +38,7 @@ async def create_enterprise(engine, enterprise: api.Enterprise):
         await session.refresh(enterprise_db)
     return enterprise_db
 
-async def create_enterprise_user(engine, enterprise_user: api.EnterpriseUser):
+async def create_enterprise_user(engine, enterprise_user: api.EnterpriseUser, user: api.User|None=None):
     enterprise_user_db = EnterpriseUser(
         company_id = enterprise_user.enterprise_id,
         dept_id = enterprise_user.department_id,
@@ -40,19 +46,25 @@ async def create_enterprise_user(engine, enterprise_user: api.EnterpriseUser):
         phone = enterprise_user.phone,
         email = enterprise_user.email,
         position = enterprise_user.position,
-        role_type = enterprise_user.rotype,
+        role_type = enterprise_user.role_type,
         approval_level = enterprise_user.approval_level,
         status = enterprise_user.status
     )
     async with get_session(engine) as session:
         session.add(enterprise_user_db)
+        if user is not None:
+            await session.flush()
+            await session.refresh(enterprise_user_db)
+            await create_user(engine, user.username, user.password_hash, user_type=user.user_type,
+                              enterprise_staff_id=enterprise_user_db.user_id, session=session)
+
         await session.commit()
         await session.refresh(enterprise_user_db)
+
     return enterprise_user_db
 
-
 async def create_user(engine, username: str, password_hash: str, user_type: str,
-                             enterprise_staff_id: int = None, contractor_staff_id: int = None) -> User:
+                             enterprise_staff_id: int = None, contractor_staff_id: int = None, session=None) -> User:
     """简化版的用户创建函数"""
     user = User(
         username=username,
@@ -63,6 +75,11 @@ async def create_user(engine, username: str, password_hash: str, user_type: str,
         created_at=datetime.now(),
         updated_at=datetime.now()
     )
+    if session is not None:
+        session.add(user)
+        await session.flush()
+        await session.refresh(user)
+        return user
     async with get_session(engine) as session:
         session.add(user)
         await session.commit()
@@ -111,6 +128,7 @@ async def create_contractor_user(engine, contractor_user: api.ContractorUser):
         id_number=contractor_user.id_number,
         work_type=contractor_user.work_type,
         personal_photo=contractor_user.personal_photo,
+        role_type=contractor_user.role_type,
         status=contractor_user.status
     )
     async with get_session(engine) as session:
