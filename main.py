@@ -79,6 +79,15 @@ async def login_for_access_token(response: Response,
         )
     return Token(access_token=access_token, token_type="bearer")
 
+@app.post("/logout")
+async def logout(response: Response):
+    # 删除 access_token Cookie
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+    )
+    return {"message": "Logged out"}
+
 
 def get_token_from_cookie(access_token: str | None = Cookie(default=None)):
     if access_token is None:
