@@ -38,7 +38,7 @@ class Contractor(SQLModel, table=True):
     company_name: str = Field(max_length=255,default=None, nullable=False)
     company_type: str = Field(max_length=100,default=None, nullable=True)
     legal_person: str = Field(max_length=100,default=None, nullable=True)
-    established_date: date = Field(default=None, nullable=True)
+    establish_date: date = Field(default=None, nullable=True)  # 修改字段名以匹配数据库
     registered_capital: float = Field(default=None, nullable=True)
     applicant_name: str = Field(max_length=100,default=None, nullable=True)
 

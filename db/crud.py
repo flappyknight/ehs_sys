@@ -189,6 +189,94 @@ async def main():
         print(f"查询失败: {e}")
 
 
+async def get_projects_for_user(engine, user: api.User) -> List[ContractorProject]:
+    """根据用户类型和权限获取项目列表"""
+    async with get_session(engine) as session:
+        if user.user_type == "admin":
+            # 管理员可以看到所有项目
+            statement = select(ContractorProject).options(selectinload(ContractorProject.plans))
+        elif user.user_type == "enterprise" and user.enterprise_user:
+            # 企业用户只能看到自己公司的项目
+            statement = select(ContractorProject).where(
+                ContractorProject.enterprise_id == user.enterprise_user.enterprise_id
+            ).options(selectinload(ContractorProject.plans))
+        elif user.user_type == "contractor" and user.contractor_user:
+            # 承包商用户只能看到自己承包商的项目
+            statement = select(ContractorProject).where(
+                ContractorProject.contractor_id == user.contractor_user.contractor_id
+            ).options(selectinload(ContractorProject.plans))
+        else:
+            return []
+        
+        result = await session.exec(statement)
+        projects = result.scalars().all()  # 使用 scalars() 确保返回模型对象
+        return projects
+
+async def get_project_detail(engine, project_id: int, user: api.User) -> ContractorProject|None:
+    """获取项目详情，包含计划列表"""
+    async with get_session(engine) as session:
+        # 首先检查用户是否有权限访问该项目
+        if user.user_type == "admin":
+            statement = select(ContractorProject).where(ContractorProject.project_id == project_id)
+        elif user.user_type == "enterprise" and user.enterprise_user:
+            statement = select(ContractorProject).where(
+                ContractorProject.project_id == project_id,
+                ContractorProject.enterprise_id == user.enterprise_user.enterprise_id
+            )
+        elif user.user_type == "contractor" and user.contractor_user:
+            statement = select(ContractorProject).where(
+                ContractorProject.project_id == project_id,
+                ContractorProject.contractor_id == user.contractor_user.contractor_id
+            )
+        else:
+            return None
+        
+        statement = statement.options(selectinload(ContractorProject.plans))
+        result = await session.exec(statement)
+        project = result.first()
+        return project
+
+async def get_plan_participants(engine, plan_id: int) -> List[ContractorUser]:
+    """获取计划的参与人员列表"""
+    async with get_session(engine) as session:
+        statement = select(ContractorUser).join(
+            EntryPlanUser, ContractorUser.user_id == EntryPlanUser.user_id
+        ).where(EntryPlanUser.plan_id == plan_id)
+        
+        result = await session.exec(statement)
+        participants = result.all()
+        return participants
+
+async def get_contractor_by_id(engine, contractor_id: int) -> Contractor|None:
+    """根据承包商ID获取承包商信息"""
+    async with get_session(engine) as session:
+        statement = select(Contractor).where(Contractor.contractor_id == contractor_id)
+        result = await session.exec(statement)
+        contractor = result.scalars().first()  # 使用 scalars() 确保返回模型对象
+        return contractor
+
+async def check_user_registration(engine, user_id: int, plan_id: int) -> bool:
+    """检查用户是否已经登记"""
+    async with get_session(engine) as session:
+        # 查找该用户在该计划中的EntryPlanUser记录
+        plan_user_statement = select(EntryPlanUser).where(
+            EntryPlanUser.user_id == user_id,
+            EntryPlanUser.plan_id == plan_id
+        )
+        plan_user_result = await session.exec(plan_user_statement)
+        plan_user = plan_user_result.first()
+        
+        if not plan_user:
+            return False
+        
+        # 检查是否有对应的登记记录
+        register_statement = select(EntryRegister).where(
+            EntryRegister.plan_user_id == plan_user.id
+        )
+        register_result = await session.exec(register_statement)
+        register = register_result.first()
+        
+        return register is not None
 
 
 if __name__ == "__main__":

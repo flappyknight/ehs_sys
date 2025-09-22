@@ -35,6 +35,7 @@ class User(BaseModel):
     user_id: int|None = None
     user_type: UserType
     username: str
+    password_hash : Optional[str] = None
     enterprise_staff_id: int|None = None
     contractor_staff_id: int|None = None
     enterprise_user: Optional["EnterpriseUser"] = None
@@ -117,5 +118,37 @@ class Department(BaseModel):
     name: str
     parent_id: int = None
     pass
+
+
+class ProjectListItem(BaseModel):
+    project_id: int
+    project_name: str
+    contractor_name: str
+    project_leader: str
+    leader_phone: str
+    planned_entry_count: int  # 已计划进场数/次
+
+class ProjectDetail(BaseModel):
+    project_id: int
+    project_name: str
+    contractor_name: str
+    project_leader: str
+    leader_phone: str
+    plans: List["PlanDetail"]
+
+class PlanDetail(BaseModel):
+    plan_id: int
+    project_name: str
+    plan_date: date
+    participant_count: int  # 计划参与人数
+    is_completed: bool  # 是否完成计划
+    participants: List["PlanParticipant"] = []
+
+class PlanParticipant(BaseModel):
+    user_id: int
+    name: str
+    phone: str
+    id_number: str
+    is_registered: bool  # 是否登记
 
 

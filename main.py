@@ -2,9 +2,9 @@
 from datetime import timedelta, datetime, timezone
 from typing import AsyncIterator, Union, Annotated
 
-
 from fastapi import FastAPI, Depends, HTTPException, status, Cookie, Response, Query
 from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.middleware.cors import CORSMiddleware
 
 from contextlib import asynccontextmanager
 import jwt
@@ -16,9 +16,7 @@ from core.init_admin import init_admin_user
 from core import password as pwd
 from config import settings
 from api.model import *
-from api.model_trans import convert_user_db_to_response
-
-
+from api.model_trans import convert_user_db_to_response, convert_projects_to_list_response, convert_project_to_detail_response
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -33,8 +31,16 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     await engine.dispose()
     print("数据库连接已关闭")
 
-
 app = FastAPI(lifespan=lifespan)
+
+# 添加 CORS 中间件
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 在生产环境中应该指定具体的域名
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 async def authenticate_user(username: str, password: str):
     user = await crud.get_user(app.state.engine, username)
@@ -76,7 +82,9 @@ async def login_for_access_token(response: Response,
             key="access_token",
             value=f"Bearer {access_token}",
             httponly=True,
-            max_age=access_token_expires,  # 可选：设置过期时间
+            max_age=int(access_token_expires.total_seconds()),  # 转换为秒数
+            samesite="lax",  # 允许跨站请求
+            secure=False,  # 开发环境设为 False，生产环境应设为 True
         )
     return Token(access_token=access_token, token_type="bearer")
 
@@ -104,15 +112,18 @@ async def read_users_me(token: str = Depends(get_token_from_cookie)) ->User:
     username = payload.get("sub")
     user_type = payload.get("user_type")
     user_db = await crud.get_user(app.state.engine, username, user_type)
-    user =convert_user_db_to_response(user_db)
+    
+    if not user_db:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user = convert_user_db_to_response(user_db)
+    
+    # 确保返回完整的用户信息
     if user.user_type == UserType.contractor:
         user.contractor_user = user.contractor_user
-        return user
     elif user.user_type == UserType.enterprise:
         user.enterprise_user = user.enterprise_user
-        return user
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    # admin 用户不需要额外处理
     return user
 
 
@@ -191,3 +202,37 @@ async def add_project(project: Project):
 async def add_plan(plan: Plan):
     plan_db = await crud.create_plan(app.state.engine, plan)
     return plan_db
+
+# 在文件末尾添加新的API接口
+
+@app.get("/projects/", dependencies=[Depends(read_users_me)])
+async def get_projects(user: User = Depends(read_users_me)) -> List[ProjectListItem]:
+    """获取项目列表，根据用户权限过滤"""
+    projects = await crud.get_projects_for_user(app.state.engine, user)
+    return await convert_projects_to_list_response(app.state.engine, projects)
+
+@app.get("/projects/{project_id}/", dependencies=[Depends(read_users_me)])
+async def get_project_detail(project_id: int, user: User = Depends(read_users_me)) -> ProjectDetail:
+    """获取项目详情，包含计划列表"""
+    project = await crud.get_project_detail(app.state.engine, project_id, user)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在或无权限访问")
+    return await convert_project_to_detail_response(app.state.engine, project)
+
+@app.get("/plans/{plan_id}/participants/", dependencies=[Depends(read_users_me)])
+async def get_plan_participants(plan_id: int, user: User = Depends(read_users_me)) -> List[PlanParticipant]:
+    """获取计划的参与人员列表"""
+    # 这里可以添加权限检查，确保用户有权限查看该计划
+    participants = await crud.get_plan_participants(app.state.engine, plan_id)
+    result = []
+    for participant in participants:
+        is_registered = await crud.check_user_registration(app.state.engine, participant.user_id, plan_id)
+        participant_item = PlanParticipant(
+            user_id=participant.user_id,
+            name=participant.name,
+            phone=participant.phone,
+            id_number=participant.id_number,
+            is_registered=is_registered
+        )
+        result.append(participant_item)
+    return result
