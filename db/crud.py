@@ -7,7 +7,7 @@ from db.connection import get_session
 from api import model as api
 
 
-async def get_user(engine, username, user_type: str=None) -> User:
+async def get_user(engine, username, user_type: str=None) -> User|None:
     if user_type == api.UserType.contractor:
         statement = select(User).where(User.username == username).options(selectinload(User.contractor_user))
     elif user_type == api.UserType.enterprise:
@@ -16,7 +16,11 @@ async def get_user(engine, username, user_type: str=None) -> User:
         statement = select(User).where(User.username == username)
     async with get_session(engine) as session:
         result = await session.exec(statement)
-        user = result.first()[0]
+        try :
+            user = result.first()[0]
+        except Exception:
+            print("no such user!")
+            return None
         return user
 
 async def get_user_count(engine) -> int:

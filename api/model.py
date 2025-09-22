@@ -1,5 +1,5 @@
 from datetime import date
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 from enum import Enum, IntEnum
 
@@ -32,12 +32,13 @@ class ApprovalLevel(IntEnum):
     pass
 
 class User(BaseModel):
-    user_id: int = None
+    user_id: int|None = None
     user_type: UserType
     username: str
-    password_hash: str
-    enterprise_staff_id: int = None
-    contractor_staff_id: int = None
+    enterprise_staff_id: int|None = None
+    contractor_staff_id: int|None = None
+    enterprise_user: Optional["EnterpriseUser"] = None
+    contractor_user: Optional["ContractorUser"] = None
     pass
 
 class Enterprise(BaseModel):
@@ -57,7 +58,7 @@ class EnterpriseUser(BaseModel):
     email: str = None
     position: str = None
     role_type: str = "normal"
-    approval_level: ApprovalLevel = ApprovalLevel.level_1
+    approval_level: ApprovalLevel|int = ApprovalLevel.level_1
     status: bool = True
     pass
 
@@ -116,3 +117,5 @@ class Department(BaseModel):
     name: str
     parent_id: int = None
     pass
+
+

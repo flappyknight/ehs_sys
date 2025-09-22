@@ -16,6 +16,7 @@ from core.init_admin import init_admin_user
 from core import password as pwd
 from config import settings
 from api.model import *
+from api.model_trans import convert_user_db_to_response
 
 
 
@@ -95,14 +96,15 @@ def get_token_from_cookie(access_token: str | None = Cookie(default=None)):
     return access_token
 
 @app.get("/users/me/")
-async def read_users_me(token: str = Depends(get_token_from_cookie)):
+async def read_users_me(token: str = Depends(get_token_from_cookie)) ->User:
     try:
         payload = jwt.decode(token.replace("Bearer ", ""), settings.secret_key, algorithms=[settings.algorithm])
     except InvalidTokenError:
         raise HTTPException(status_code=401, detail="Not authenticated")
     username = payload.get("sub")
     user_type = payload.get("user_type")
-    user = await crud.get_user(app.state.engine, username, user_type)
+    user_db = await crud.get_user(app.state.engine, username, user_type)
+    user =convert_user_db_to_response(user_db)
     if user.user_type == UserType.contractor:
         user.contractor_user = user.contractor_user
         return user
