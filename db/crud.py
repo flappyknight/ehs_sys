@@ -233,7 +233,7 @@ async def get_project_detail(engine, project_id: int, user: api.User) -> Contrac
         
         statement = statement.options(selectinload(ContractorProject.plans))
         result = await session.exec(statement)
-        project = result.first()
+        project = result.scalars().first()  # 使用 scalars().first() 而不是 first()
         return project
 
 async def get_plan_participants(engine, plan_id: int) -> List[ContractorUser]:
@@ -244,7 +244,7 @@ async def get_plan_participants(engine, plan_id: int) -> List[ContractorUser]:
         ).where(EntryPlanUser.plan_id == plan_id)
         
         result = await session.exec(statement)
-        participants = result.all()
+        participants = result.scalars().all()  # 使用 scalars().all() 而不是 all()
         return participants
 
 async def get_contractor_by_id(engine, contractor_id: int) -> Contractor|None:
@@ -264,7 +264,7 @@ async def check_user_registration(engine, user_id: int, plan_id: int) -> bool:
             EntryPlanUser.plan_id == plan_id
         )
         plan_user_result = await session.exec(plan_user_statement)
-        plan_user = plan_user_result.first()
+        plan_user = plan_user_result.scalars().first()  # 使用 scalars().first()
         
         if not plan_user:
             return False
@@ -274,7 +274,7 @@ async def check_user_registration(engine, user_id: int, plan_id: int) -> bool:
             EntryRegister.plan_user_id == plan_user.id
         )
         register_result = await session.exec(register_statement)
-        register = register_result.first()
+        register = register_result.scalars().first()  # 使用 scalars().first()
         
         return register is not None
 

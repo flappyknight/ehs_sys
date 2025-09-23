@@ -36,7 +36,7 @@ app = FastAPI(lifespan=lifespan)
 # 添加 CORS 中间件
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 在生产环境中应该指定具体的域名
+    allow_origins=["*"],  # 开发环境允许所有来源，生产环境应指定具体域名
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -81,10 +81,11 @@ async def login_for_access_token(response: Response,
         response.set_cookie(
             key="access_token",
             value=f"Bearer {access_token}",
-            httponly=True,
+            httponly=False,
             max_age=int(access_token_expires.total_seconds()),  # 转换为秒数
-            samesite="lax",  # 允许跨站请求
-            secure=False,  # 开发环境设为 False，生产环境应设为 True
+            samesite="none",  # 允许跨站请求
+            secure=True,  # 开发环境设为 False，生产环境应设为 True
+            path="/",
         )
     return Token(access_token=access_token, token_type="bearer")
 
@@ -203,13 +204,16 @@ async def add_plan(plan: Plan):
     plan_db = await crud.create_plan(app.state.engine, plan)
     return plan_db
 
-# 在文件末尾添加新的API接口
-
-@app.get("/projects/", dependencies=[Depends(read_users_me)])
+@app.get("/projects/")
 async def get_projects(user: User = Depends(read_users_me)) -> List[ProjectListItem]:
     """获取项目列表，根据用户权限过滤"""
     projects = await crud.get_projects_for_user(app.state.engine, user)
     return await convert_projects_to_list_response(app.state.engine, projects)
+
+
+@app.get("/test/", dependencies=[Depends(read_users_me)])
+async def test() :
+    return {"hello": "world"}
 
 @app.get("/projects/{project_id}/", dependencies=[Depends(read_users_me)])
 async def get_project_detail(project_id: int, user: User = Depends(read_users_me)) -> ProjectDetail:
