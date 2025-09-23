@@ -1,5 +1,5 @@
 from db import models as db_models
-from api.model import User, UserType, EnterpriseUser, ContractorUser, ProjectListItem, ProjectDetail, PlanDetail, PlanParticipant
+from api.model import User, UserType, EnterpriseUser, ContractorUser, ProjectListItem, ProjectDetail, PlanDetail, PlanParticipant, ContractorListItem
 from db import crud
 from typing import List
 
@@ -121,3 +121,19 @@ async def convert_project_to_detail_response(engine, project: db_models.Contract
     )
     
     return project_detail
+
+async def convert_contractors_to_list_response(engine, contractors: List[db_models.Contractor], enterprise_id: int) -> List[ContractorListItem]:
+    """将承包商数据库对象转换为API响应格式"""
+    result = []
+    for contractor in contractors:
+        project_count = await crud.get_contractor_project_count(engine, contractor.contractor_id, enterprise_id)
+        contractor_item = ContractorListItem(
+            contractor_id=contractor.contractor_id,
+            company_name=contractor.company_name,
+            company_type=contractor.company_type,
+            legal_person=contractor.legal_person,
+            establish_date=str(contractor.establish_date),
+            project_count=project_count
+        )
+        result.append(contractor_item)
+    return result

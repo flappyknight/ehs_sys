@@ -279,6 +279,91 @@ async def check_user_registration(engine, user_id: int, plan_id: int) -> bool:
         return register is not None
 
 
+async def get_contractors_for_enterprise(engine, enterprise_id: int) -> List[Contractor]:
+    """获取与指定企业有合作的承包商列表（保证数据隔离）"""
+    statement = select(Contractor).join(
+        ContractorProject, Contractor.contractor_id == ContractorProject.contractor_id
+    ).where(
+        ContractorProject.enterprise_id == enterprise_id
+    ).distinct()
+    
+    async with get_session(engine) as session:
+        result = await session.exec(statement)
+        contractors = result.scalars().all()
+        return list(contractors)
+
+async def get_contractor_project_count(engine, contractor_id: int, enterprise_id: int) -> int:
+    """获取承包商与指定企业的合作项目数量"""
+    statement = select(func.count()).select_from(ContractorProject).where(
+        ContractorProject.contractor_id == contractor_id,
+        ContractorProject.enterprise_id == enterprise_id
+    )
+    
+    async with get_session(engine) as session:
+        result = await session.exec(statement)
+        count = result.scalar_one()
+        return count
+
+async def create_contractor_with_project(engine, request: api.ContractorProjectRequest, enterprise_id: int) -> tuple[Contractor, ContractorProject]:
+    """创建承包商和项目（支持新承包商和已有承包商两种情况）"""
+    async with get_session(engine) as session:
+        contractor = None
+        
+        if request.contractor_id:
+            # 情况2：与已有承包商创建新项目
+            contractor_statement = select(Contractor).where(Contractor.contractor_id == request.contractor_id)
+            contractor_result = await session.exec(contractor_statement)
+            contractor = contractor_result.scalars().first()
+            
+            if contractor is None:
+                raise ValueError(f"承包商ID {request.contractor_id} 不存在")
+                
+            # 验证该承包商是否与当前企业有过合作（数据隔离检查）
+            existing_project_statement = select(ContractorProject).where(
+                ContractorProject.contractor_id == request.contractor_id,
+                ContractorProject.enterprise_id == enterprise_id
+            )
+            existing_project_result = await session.exec(existing_project_statement)
+            existing_project = existing_project_result.scalars().first()
+            
+            if not existing_project:
+                raise ValueError("该承包商与当前企业无合作历史，无法创建新项目")
+        else:
+            # 情况1：创建新承包商和项目
+            if not all([request.company_name, request.license_file, request.company_type, 
+                       request.legal_person, request.establish_date, request.registered_capital, 
+                       request.applicant_name]):
+                raise ValueError("创建新承包商时，所有承包商信息字段都是必填的")
+            
+            contractor = Contractor(
+                company_name=request.company_name,
+                license_file=request.license_file,
+                company_type=request.company_type,
+                legal_person=request.legal_person,
+                establish_date=request.establish_date,
+                registered_capital=request.registered_capital,
+                applicant_name=request.applicant_name
+            )
+            session.add(contractor)
+            await session.flush()  # 获取contractor_id
+            await session.refresh(contractor)
+        
+        # 创建项目
+        project = ContractorProject(
+            contractor_id=contractor.contractor_id,
+            enterprise_id=enterprise_id,
+            project_name=request.project_name,
+            leader_name=request.leader_name,
+            leader_phone=request.leader_phone
+        )
+        session.add(project)
+        await session.commit()
+        await session.refresh(contractor)
+        await session.refresh(project)
+        
+        return contractor, project
+
+
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main())

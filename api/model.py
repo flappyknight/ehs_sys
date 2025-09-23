@@ -152,3 +152,33 @@ class PlanParticipant(BaseModel):
     is_registered: bool  # 是否登记
 
 
+class ContractorListItem(BaseModel):
+    contractor_id: int
+    company_name: str
+    company_type: str
+    legal_person: str
+    establish_date: str
+    project_count: int  # 合作项目数量
+
+class ContractorProjectRequest(BaseModel):
+    # 承包商信息（新承包商时必填，已有承包商时只需contractor_id）
+    contractor_id: Optional[int] = None  # 已有承包商的ID
+    company_name: Optional[str] = None
+    license_file: Optional[str] = None
+    company_type: Optional[str] = None
+    legal_person: Optional[str] = None
+    establish_date: Optional[str] = None
+    registered_capital: Optional[float] = None
+    applicant_name: Optional[str] = None
+    
+    # 项目信息（必填）
+    project_name: str
+    leader_name: str
+    leader_phone: str
+
+class ContractorProjectResponse(BaseModel):
+    contractor_id: int
+    project_id: int
+    message: str
+
+

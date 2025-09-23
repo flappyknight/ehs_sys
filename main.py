@@ -16,7 +16,7 @@ from core.init_admin import init_admin_user
 from core import password as pwd
 from config import settings
 from api.model import *
-from api.model_trans import convert_user_db_to_response, convert_projects_to_list_response, convert_project_to_detail_response
+from api.model_trans import convert_user_db_to_response, convert_projects_to_list_response, convert_project_to_detail_response, convert_contractors_to_list_response
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -240,3 +240,58 @@ async def get_plan_participants(plan_id: int, user: User = Depends(read_users_me
         )
         result.append(participant_item)
     return result
+
+@app.get("/contractors/")
+async def get_contractors(user: User = Depends(read_users_me)) -> List[ContractorListItem]:
+    """获取与当前企业有合作的承包商列表（保证数据隔离）"""
+    if user.user_type != UserType.enterprise:
+        raise HTTPException(status_code=403, detail="只有企业用户可以查看承包商列表")
+    
+    enterprise_id = user.enterprise_user.enterprise_id
+    contractors = await crud.get_contractors_for_enterprise(app.state.engine, enterprise_id)
+    
+    result = []
+    for contractor in contractors:
+        project_count = await crud.get_contractor_project_count(
+            app.state.engine, contractor.contractor_id, enterprise_id
+        )
+        contractor_item = ContractorListItem(
+            contractor_id=contractor.contractor_id,
+            company_name=contractor.company_name,
+            company_type=contractor.company_type,
+            legal_person=contractor.legal_person,
+            establish_date=str(contractor.establish_date),
+            project_count=project_count
+        )
+        result.append(contractor_item)
+    
+    return result
+
+@app.post("/contractors/create-project/")
+async def create_contractor_project(
+    request: ContractorProjectRequest, 
+    user: User = Depends(authenticate_enterprise_level)
+) -> ContractorProjectResponse:
+    """与承包商创建合作项目（支持新承包商和已有承包商）"""
+    enterprise_id = user.enterprise_user.enterprise_id
+    
+    try:
+        contractor, project = await crud.create_contractor_with_project(
+            app.state.engine, request, enterprise_id
+        )
+        
+        if request.contractor_id:
+            message = f"成功与承包商 {contractor.company_name} 创建新项目 {project.project_name}"
+        else:
+            message = f"成功创建新承包商 {contractor.company_name} 并建立合作项目 {project.project_name}"
+        
+        return ContractorProjectResponse(
+            contractor_id=contractor.contractor_id,
+            project_id=project.project_id,
+            message=message
+        )
+    
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"创建失败: {str(e)}")

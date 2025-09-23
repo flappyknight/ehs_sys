@@ -115,6 +115,7 @@ class EntryPlan(SQLModel, table=True):
     plan_id: int = Field(default=None, primary_key=True)
     project_id: int = Field(default=None, foreign_key="contractor_project.project_id", nullable=False)
     plan_date: date = Field(default=None, nullable=False)
+    status: int = Field(default=0, nullable=False)
 
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
@@ -143,3 +144,13 @@ class EntryRegister(SQLModel, table=True):
     photo_path: str = Field(max_length=255, default=None, nullable=False)
 
     created_at: datetime = Field(default_factory=datetime.now)
+
+class Area(SQLModel, table=True):
+    __tablename__ = 'area'
+    area_id: int = Field(default=None, primary_key=True)
+    enterprise_id: int = Field(default=None, foreign_key="company.company_id", nullable=False)
+    area_name: str = Field(max_length=64, default=None, nullable=False)
+    dept_id: int = Field(default=None, foreign_key="department.dept_id", nullable=True)
+    
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
