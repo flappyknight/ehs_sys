@@ -16,7 +16,7 @@ from core.init_admin import init_admin_user
 from core import password as pwd
 from config import settings
 from api.model import *
-from api.model_trans import convert_user_db_to_response, convert_projects_to_list_response, convert_project_to_detail_response, convert_contractors_to_list_response
+from api.model_trans import convert_user_db_to_response, convert_projects_to_list_response, convert_project_to_detail_response
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -322,7 +322,7 @@ def get_user_enterprise_id(user: User) -> int:
     """获取用户的企业ID"""
     if user.user_type == UserType.enterprise and user.enterprise_user:
         return user.enterprise_user.enterprise_id
-    return None
+    return 0
 
 # 企业相关 API 端点
 @app.get("/enterprises/")

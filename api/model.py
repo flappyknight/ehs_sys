@@ -188,7 +188,7 @@ class ContractorProjectResponse(BaseModel):
 
 class Area(BaseModel):
     area_id: Optional[int] = None
-    enterprise_id: int
+    enterprise_id: Optional[int] = None
     area_name: str
     dept_id: Optional[int] = None
     pass
