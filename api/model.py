@@ -32,40 +32,37 @@ class ApprovalLevel(IntEnum):
     pass
 
 class User(BaseModel):
-    user_id: int|None = None
+    user_id: Optional[int] = None
     user_type: UserType
     username: str
-    password_hash : Optional[str] = None
-    enterprise_staff_id: int|None = None
-    contractor_staff_id: int|None = None
+    password_hash: Optional[str] = None
+    enterprise_staff_id: Optional[int] = None
+    contractor_staff_id: Optional[int] = None
     enterprise_user: Optional["EnterpriseUser"] = None
     contractor_user: Optional["ContractorUser"] = None
     pass
 
 class Enterprise(BaseModel):
-    enterprise_id: int =None
-    name: str = None
+    enterprise_id: Optional[int] = None
+    name: Optional[str] = None
     type: str = "enterprise"
-
     pass
 
-
 class EnterpriseUser(BaseModel):
-    user_id: int = None
+    user_id: Optional[int] = None
     enterprise_id: int
-    department_id: int = None
+    department_id: Optional[int] = None
     name: str
-    phone: str = None
-    email: str = None
-    position: str = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    position: Optional[str] = None
     role_type: str = "normal"
     approval_level: ApprovalLevel|int = ApprovalLevel.level_1
     status: bool = True
     pass
 
-
 class Contractor(BaseModel):
-    contractor_id: int =None
+    contractor_id: Optional[int] = None
     company_name: str
     license_file: str
     company_type: str
@@ -73,12 +70,10 @@ class Contractor(BaseModel):
     establish_date: str
     registered_capital: int
     applicant_name: str
-
     pass
 
-
 class Project(BaseModel):
-    project_id: int = None
+    project_id: Optional[int] = None
     contractor_id: int
     enterprise_id: int
     project_name: str
@@ -86,22 +81,20 @@ class Project(BaseModel):
     leader_phone: str
     pass
 
-
 class Plan(BaseModel):
-    plan_id: int = None
+    plan_id: Optional[int] = None
     project_id: int
     plan_date: date
     workers: List[int]
     pass
 
 class PlanWorker(BaseModel):
-    plan_user_id: int = None
+    plan_user_id: Optional[int] = None
     plan_id: int
     user_id: int
 
-
 class ContractorUser(BaseModel):
-    user_id: int = None
+    user_id: Optional[int] = None
     contractor_id: int
     name: str
     phone: str
@@ -111,13 +104,25 @@ class ContractorUser(BaseModel):
     role_type: str
     status: bool
 
-
 class Department(BaseModel):
-    department_id: int = None
+    department_id: Optional[int] = None
     enterprise_id: int
     name: str
-    parent_id: int = None
+    parent_id: Optional[int] = None
     pass
+
+# 新增企业响应类型
+class EnterpriseListItem(BaseModel):
+    company_id: int
+    name: str
+    type: str
+
+# 新增部门响应类型  
+class DepartmentListItem(BaseModel):
+    dept_id: int
+    company_id: int
+    name: str
+    parent_id: Optional[int] = None
 
 
 class ProjectListItem(BaseModel):
@@ -180,5 +185,53 @@ class ContractorProjectResponse(BaseModel):
     contractor_id: int
     project_id: int
     message: str
+
+class Area(BaseModel):
+    area_id: Optional[int] = None
+    enterprise_id: int
+    area_name: str
+    dept_id: Optional[int] = None
+    pass
+
+class AreaListItem(BaseModel):
+    area_id: int
+    area_name: str
+    enterprise_name: str
+    dept_name: Optional[str] = None
+    pass
+
+
+# ===== 人员管理相关模型 =====
+
+class DepartmentWithMemberCount(BaseModel):
+    """部门信息及成员数量"""
+    dept_id: int
+    name: str
+    company_id: int
+    company_name: str
+    member_count: int
+    parent_id: Optional[int] = None  # 修复：使用 Optional[int]
+
+class EnterpriseUserListItem(BaseModel):
+    """企业用户列表项"""
+    user_id: int
+    name: str
+    phone: str
+    email: str
+    position: Optional[str] = None
+    role_type: str
+    company_name: str
+    dept_id: Optional[int] = None
+    status: bool
+
+class EnterpriseUserUpdate(BaseModel):
+    """企业用户更新模型"""
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    position: Optional[str] = None
+    dept_id: Optional[int] = None
+    role_type: Optional[str] = None
+    status: Optional[bool] = None
 
 

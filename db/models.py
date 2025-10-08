@@ -154,3 +154,77 @@ class Area(SQLModel, table=True):
     
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+
+# 作业设备表
+class WorkEquipment(SQLModel, table=True):
+    __tablename__ = 'work_equipment'
+    equipment_id: int = Field(default=None, primary_key=True)
+    equipment_name: str = Field(max_length=100, default=None, nullable=False)
+    equipment_power: str = Field(max_length=50, default=None, nullable=False)  # 设备功率
+    work_voltage: str = Field(max_length=50, default=None, nullable=False)  # 工作电压
+    
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+# 受限空间表
+class ConfinedSpace(SQLModel, table=True):
+    __tablename__ = 'confined_space'
+    confined_space_id: int = Field(default=None, primary_key=True)
+    ticket_id: int = Field(default=None, foreign_key="ticket.ticket_id", nullable=False)
+    space_level: int = Field(default=None, nullable=False)  # 受限空间等级 (1:一级，2：二级)
+    space_name: str = Field(max_length=50, default=None, nullable=False)  # 受限空间名称
+    original_medium: str = Field(max_length=50, default=None, nullable=False)  # 有限空间原有介质
+    
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+# 临时用电表
+class TemporaryPower(SQLModel, table=True):
+    __tablename__ = 'temporary_power'
+    temp_power_id: int = Field(default=None, primary_key=True)
+    ticket_id: int = Field(default=None, foreign_key="ticket.ticket_id", nullable=False)
+    equipment_id: int = Field(default=None, foreign_key="work_equipment.equipment_id", nullable=False)
+    power_access_point: str = Field(max_length=100, default=None, nullable=False)  # 电源接入点
+    
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+# 交叉作业表
+class CrossWork(SQLModel, table=True):
+    __tablename__ = 'cross_work'
+    id: int = Field(default=None, primary_key=True)
+    group_id: str = Field(max_length=50, default=None, nullable=False)  # 交叉作业组ID
+    area_id: int = Field(default=None, foreign_key="area.area_id", nullable=False)
+    ticket_id: int = Field(default=None, foreign_key="ticket.ticket_id", nullable=False)
+    
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+# 修改后的作业票表
+class Ticket(SQLModel, table=True):
+    __tablename__ = 'ticket'
+    ticket_id: int = Field(default=None, primary_key=True)
+    apply_date: date = Field(default=None, nullable=False)
+    applicant: int = Field(default=None, foreign_key="enterprise_user.user_id", nullable=False)
+    area_id: int = Field(default=None, foreign_key="area.area_id", nullable=False)
+    working_content: str = Field(max_length=1024, default=None, nullable=False)
+    pre_st: datetime = Field(default=None, nullable=False)  # 预计开始时间
+    pre_et: datetime = Field(default=None, nullable=False)  # 预计结束时间
+    tools: int = Field(default=0, nullable=False)  # 主要工具（二进制编码）
+    worker: int = Field(default=None, foreign_key="contractor_user.user_id", nullable=False)
+    custodians: int = Field(default=None, foreign_key="enterprise_user.user_id", nullable=False)  # 监护人
+    danger: int = Field(default=0, nullable=False)  # 危险识别（二进制编码）
+    protection: int = Field(default=0, nullable=False)  # 防护措施（二进制编码）
+    
+    # 特殊作业字段
+    hot_work: int = Field(default=-1, nullable=False)  # 动火等级：-1:未动火 0:特级动火 1:一级动火 2:二级动火
+    work_height_level: int = Field(default=0, nullable=False)  # 作业高度等级：0-4级，数值越大危险程度越高
+    confined_space_id: int = Field(default=None, foreign_key="confined_space.confined_space_id", nullable=True)  # 受限空间ID
+    temp_power_id: int = Field(default=None, foreign_key="temporary_power.temp_power_id", nullable=True)  # 临时用电ID
+    cross_work_group_id: str = Field(max_length=50, default=None, nullable=True)  # 交叉作业组ID
+    
+    signature: str = Field(max_length=255, default=None, nullable=True)  # 签字
+    
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
