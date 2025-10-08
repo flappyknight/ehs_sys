@@ -2,7 +2,7 @@
 from datetime import timedelta, datetime, timezone
 from typing import AsyncIterator, Union, Annotated
 
-from fastapi import FastAPI, Depends, HTTPException, status, Cookie, Response, Query
+from fastapi import FastAPI, Depends, HTTPException, status, Query
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -36,7 +36,10 @@ app = FastAPI(lifespan=lifespan)
 # 添加 CORS 中间件
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 开发环境允许所有来源，生产环境应指定具体域名
+    allow_origins=[
+        "http://localhost:3000",
+        "http://192.168.1.185:3000"
+    ],  # 明确指定允许的前端地址
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -62,8 +65,13 @@ def create_access_token(data: dict, expires_delta: Union[timedelta, None] = None
     return encoded_jwt
 
 
+from fastapi.security import OAuth2PasswordBearer
+
+# 在文件顶部添加OAuth2PasswordBearer
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
 @app.post("/token")
-async def login_for_access_token(response: Response,
+async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
 ) -> Token:
     user = await authenticate_user(form_data.username, form_data.password)
@@ -78,36 +86,16 @@ async def login_for_access_token(response: Response,
         access_token = create_access_token(
             data={"sub": user.username, "user_type": user.user_type}, expires_delta=access_token_expires
         )
-        response.set_cookie(
-            key="access_token",
-            value=f"Bearer {access_token}",
-            httponly=False,
-            max_age=int(access_token_expires.total_seconds()),  # 转换为秒数
-            samesite="none",  # 允许跨站请求
-            secure=True,  # 开发环境设为 False，生产环境应设为 True
-            path="/",
-        )
     return Token(access_token=access_token, token_type="bearer")
 
-@app.post("/logout")
-async def logout(response: Response):
-    # 删除 access_token Cookie
-    response.delete_cookie(
-        key="access_token",
-        path="/",
-    )
-    return {"message": "Logged out"}
-
-
-def get_token_from_cookie(access_token: str | None = Cookie(default=None)):
-    if access_token is None:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    return access_token
+# 修改token获取函数
+def get_token_from_header(token: str = Depends(oauth2_scheme)):
+    return token
 
 @app.get("/users/me/")
-async def read_users_me(token: str = Depends(get_token_from_cookie)) ->User:
+async def read_users_me(token: str = Depends(get_token_from_header)) -> User:
     try:
-        payload = jwt.decode(token.replace("Bearer ", ""), settings.secret_key, algorithms=[settings.algorithm])
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
     except InvalidTokenError:
         raise HTTPException(status_code=401, detail="Not authenticated")
     username = payload.get("sub")
@@ -115,7 +103,7 @@ async def read_users_me(token: str = Depends(get_token_from_cookie)) ->User:
     user_db = await crud.get_user(app.state.engine, username, user_type)
     
     if not user_db:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=401, detail="User not found")
     
     user = convert_user_db_to_response(user_db)
     
@@ -124,8 +112,41 @@ async def read_users_me(token: str = Depends(get_token_from_cookie)) ->User:
         user.contractor_user = user.contractor_user
     elif user.user_type == UserType.enterprise:
         user.enterprise_user = user.enterprise_user
-    # admin 用户不需要额外处理
     return user
+
+@app.post("/logout")
+async def logout():
+    # 由于我们使用localStorage管理token，后端不需要做任何操作
+    return {"message": "Logged out"}
+
+# 删除以下重复的代码块（第127-155行）：
+# def get_token_from_cookie(access_token: str | None = Cookie(default=None)):
+#     if access_token is None:
+#         raise HTTPException(status_code=401, detail="Not authenticated")
+#     return access_token
+
+# @app.get("/users/me/")
+# async def read_users_me(token: str = Depends(get_token_from_cookie)) ->User:
+#     try:
+#         payload = jwt.decode(token.replace("Bearer ", ""), settings.secret_key, algorithms=[settings.algorithm])
+#     except InvalidTokenError:
+#         raise HTTPException(status_code=401, detail="Not authenticated")
+#     username = payload.get("sub")
+#     user_type = payload.get("user_type")
+#     user_db = await crud.get_user(app.state.engine, username, user_type)
+#     
+#     if not user_db:
+#         raise HTTPException(status_code=404, detail="User not found")
+#     
+#     user = convert_user_db_to_response(user_db)
+#     
+#     # 确保返回完整的用户信息
+#     if user.user_type == UserType.contractor:
+#         user.contractor_user = user.contractor_user
+#     elif user.user_type == UserType.enterprise:
+#         user.enterprise_user = user.enterprise_user
+#     # admin 用户不需要额外处理
+#     return user
 
 
 async def authenticate_enterprise_level(user: User=Depends(read_users_me)):
