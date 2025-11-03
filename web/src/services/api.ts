@@ -1,6 +1,7 @@
 import type { LoginForm, Token, User } from '@/types/auth'
 
-const API_BASE = 'http://www.youngj.icu:8100'
+const API_BASE = 'http://localhost:8100'
+// const API_BASE = 'http://www.youngj.icu:8100'
 
 // Token管理类
 class TokenManager {

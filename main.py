@@ -38,7 +38,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "http://192.168.1.185:3000"
+        "http://localhost:3001",
+        "http://192.168.1.185:3000",
+        "http://www.youngj.icu:8100",
+        "http://www.youngj.icu"
     ],  # 明确指定允许的前端地址
     allow_credentials=True,
     allow_methods=["*"],
