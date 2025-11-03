@@ -235,3 +235,90 @@ class EnterpriseUserUpdate(BaseModel):
     status: Optional[bool] = None
 
 
+# ===== 工单管理相关模型 =====
+
+class TicketCreate(BaseModel):
+    """创建工单请求模型"""
+    apply_date: date
+    applicant: int  # 申请人ID
+    area_id: int  # 作业区域ID
+    working_content: str  # 作业内容
+    pre_st: str  # 预计开始时间
+    pre_et: str  # 预计结束时间
+    tools: int = 0  # 主要工具（二进制编码）
+    worker: int  # 作业人员ID
+    custodians: int  # 监护人ID
+    danger: int = 0  # 危险识别（二进制编码）
+    protection: int = 0  # 防护措施（二进制编码）
+    hot_work: int = -1  # 动火等级：-1:未动火 0:特级动火 1:一级动火 2:二级动火
+    work_height_level: int = 0  # 作业高度等级：0-4级
+    confined_space_id: Optional[int] = None  # 受限空间ID
+    temp_power_id: Optional[int] = None  # 临时用电ID
+    cross_work_group_id: Optional[str] = None  # 交叉作业组ID
+    signature: Optional[str] = None  # 签字
+
+
+class TicketUpdate(BaseModel):
+    """更新工单请求模型"""
+    apply_date: Optional[date] = None
+    area_id: Optional[int] = None
+    working_content: Optional[str] = None
+    pre_st: Optional[str] = None
+    pre_et: Optional[str] = None
+    tools: Optional[int] = None
+    worker: Optional[int] = None
+    custodians: Optional[int] = None
+    danger: Optional[int] = None
+    protection: Optional[int] = None
+    hot_work: Optional[int] = None
+    work_height_level: Optional[int] = None
+    confined_space_id: Optional[int] = None
+    temp_power_id: Optional[int] = None
+    cross_work_group_id: Optional[str] = None
+    signature: Optional[str] = None
+
+
+class TicketListItem(BaseModel):
+    """工单列表项"""
+    ticket_id: int
+    apply_date: date
+    applicant_name: str  # 申请人姓名
+    area_name: str  # 作业区域名称
+    working_content: str  # 作业内容
+    pre_st: str  # 预计开始时间
+    pre_et: str  # 预计结束时间
+    worker_name: str  # 作业人员姓名
+    custodian_name: str  # 监护人姓名
+    hot_work: int  # 动火等级
+    work_height_level: int  # 作业高度等级
+    created_at: str  # 创建时间
+
+
+class TicketDetail(BaseModel):
+    """工单详情"""
+    ticket_id: int
+    apply_date: date
+    applicant: int
+    applicant_name: str
+    area_id: int
+    area_name: str
+    working_content: str
+    pre_st: str
+    pre_et: str
+    tools: int
+    worker: int
+    worker_name: str
+    custodians: int
+    custodian_name: str
+    danger: int
+    protection: int
+    hot_work: int
+    work_height_level: int
+    confined_space_id: Optional[int] = None
+    temp_power_id: Optional[int] = None
+    cross_work_group_id: Optional[str] = None
+    signature: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+
