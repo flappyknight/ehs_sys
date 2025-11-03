@@ -24,9 +24,13 @@ routes/
 │   ├── contractor.py          # 供应商信息管理
 │   ├── project.py             # 供应商项目管理
 │   └── plan.py                # 计划管理
-└── ticket/                     # 工单后台管理模块
-    ├── __init__.py            # 工单模块路由入口
-    └── ticket.py              # 工单管理（增删改查）
+├── ticket/                     # 工单后台管理模块
+│   ├── __init__.py            # 工单模块路由入口
+│   └── ticket.py              # 工单管理（增删改查）
+└── user/                       # 用户后台管理模块
+    ├── __init__.py            # 用户模块路由入口
+    ├── user.py                # 用户管理（增删改查）
+    └── role.py                # 角色管理
 ```
 
 ## 路由层级 (Route Hierarchy)
@@ -126,6 +130,32 @@ routes/
 | `/tickets/{ticket_id}/` | GET | 获取工单详情 |
 | `/tickets/{ticket_id}/` | PUT | 更新工单 |
 | `/tickets/{ticket_id}/` | DELETE | 删除工单 |
+
+### 5. 用户后台管理 (User Management)
+**基础路径**: `/users`
+
+#### 5.1 用户管理
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/users/` | POST | 创建用户 |
+| `/users/` | GET | 获取用户列表（支持筛选） |
+| `/users/{user_id}/` | GET | 获取用户详情 |
+| `/users/{user_id}/` | PUT | 更新用户信息 |
+| `/users/{user_id}/` | DELETE | 删除用户（软删除） |
+| `/users/{user_id}/change-password/` | POST | 修改密码（用户自己） |
+| `/users/{user_id}/reset-password/` | POST | 重置密码（管理员） |
+
+#### 5.2 角色管理
+**基础路径**: `/users/roles`
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/users/roles/` | GET | 获取角色列表 |
+| `/users/roles/{role_type}/` | GET | 获取角色详情 |
+| `/users/roles/{role_type}/permissions/` | GET | 获取角色权限 |
+| `/users/roles/{user_id}/role/` | PUT | 更新用户角色 |
+| `/users/roles/enterprise/available/` | GET | 获取企业可用角色 |
+| `/users/roles/contractor/available/` | GET | 获取承包商可用角色 |
 
 ## 依赖项说明 (Dependencies)
 

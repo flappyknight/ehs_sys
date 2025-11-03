@@ -322,3 +322,115 @@ class TicketDetail(BaseModel):
     updated_at: str
 
 
+# ===== 用户管理相关模型 =====
+
+class UserCreate(BaseModel):
+    """创建用户请求模型"""
+    username: str
+    password: str
+    user_type: UserType
+    enterprise_id: Optional[int] = None  # 企业用户必填
+    contractor_id: Optional[int] = None  # 承包商用户必填
+    name: str
+    phone: str
+    email: Optional[str] = None
+    position: Optional[str] = None
+    role_type: str = "normal"
+    department_id: Optional[int] = None  # 企业用户可选
+    id_number: Optional[str] = None  # 承包商用户必填
+    work_type: Optional[str] = None  # 承包商用户必填
+    personal_photo: Optional[str] = None  # 承包商用户可选
+
+
+class UserUpdate(BaseModel):
+    """更新用户请求模型"""
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    position: Optional[str] = None
+    role_type: Optional[str] = None
+    department_id: Optional[int] = None
+    status: Optional[bool] = None
+    password: Optional[str] = None  # 可选修改密码
+
+
+class UserListItem(BaseModel):
+    """用户列表项"""
+    user_id: int
+    username: str
+    user_type: UserType
+    name: str
+    phone: str
+    email: Optional[str] = None
+    role_type: str
+    status: bool
+    company_name: Optional[str] = None  # 所属企业/承包商名称
+    department_name: Optional[str] = None  # 部门名称（企业用户）
+    created_at: str
+
+
+class UserDetail(BaseModel):
+    """用户详情"""
+    user_id: int
+    username: str
+    user_type: UserType
+    name: str
+    phone: str
+    email: Optional[str] = None
+    position: Optional[str] = None
+    role_type: str
+    status: bool
+    company_id: Optional[int] = None
+    company_name: Optional[str] = None
+    department_id: Optional[int] = None
+    department_name: Optional[str] = None
+    contractor_id: Optional[int] = None
+    id_number: Optional[str] = None
+    work_type: Optional[str] = None
+    approval_level: Optional[int] = None
+    created_at: str
+    updated_at: str
+
+
+class PasswordChange(BaseModel):
+    """修改密码请求模型"""
+    old_password: str
+    new_password: str
+
+
+class PasswordReset(BaseModel):
+    """重置密码请求模型（管理员操作）"""
+    new_password: str
+
+
+# ===== 角色管理相关模型 =====
+
+class RoleInfo(BaseModel):
+    """角色信息"""
+    role_type: str
+    role_name: str
+    description: str
+    permission_level: int
+    user_type: UserType
+
+
+class RoleListItem(BaseModel):
+    """角色列表项"""
+    role_type: str
+    role_name: str
+    description: str
+    permission_level: int
+    user_count: int  # 使用该角色的用户数量
+
+
+class RolePermission(BaseModel):
+    """角色权限"""
+    role_type: str
+    permissions: List[str]  # 权限列表
+
+
+class UserRoleUpdate(BaseModel):
+    """更新用户角色"""
+    role_type: str
+
+

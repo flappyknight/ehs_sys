@@ -56,12 +56,31 @@ FastAPI Application
 │       ├── POST   /contractor/plans/add/                    # 添加计划
 │       └── GET    /contractor/plans/{plan_id}/participants/ # 获取计划参与人员
 │
-└── /tickets (工单后台管理)
-    ├── POST   /tickets/                                     # 创建工单
-    ├── GET    /tickets/                                     # 获取工单列表
-    ├── GET    /tickets/{ticket_id}/                         # 获取工单详情
-    ├── PUT    /tickets/{ticket_id}/                         # 更新工单
-    └── DELETE /tickets/{ticket_id}/                         # 删除工单
+├── /tickets (工单后台管理)
+│   ├── POST   /tickets/                                     # 创建工单
+│   ├── GET    /tickets/                                     # 获取工单列表
+│   ├── GET    /tickets/{ticket_id}/                         # 获取工单详情
+│   ├── PUT    /tickets/{ticket_id}/                         # 更新工单
+│   └── DELETE /tickets/{ticket_id}/                         # 删除工单
+│
+└── /users (用户后台管理)
+    │
+    ├── 用户管理
+    │   ├── POST   /users/                                   # 创建用户
+    │   ├── GET    /users/                                   # 获取用户列表
+    │   ├── GET    /users/{user_id}/                         # 获取用户详情
+    │   ├── PUT    /users/{user_id}/                         # 更新用户信息
+    │   ├── DELETE /users/{user_id}/                         # 删除用户
+    │   ├── POST   /users/{user_id}/change-password/        # 修改密码
+    │   └── POST   /users/{user_id}/reset-password/         # 重置密码
+    │
+    └── /roles (角色管理)
+        ├── GET    /users/roles/                             # 获取角色列表
+        ├── GET    /users/roles/{role_type}/                 # 获取角色详情
+        ├── GET    /users/roles/{role_type}/permissions/     # 获取角色权限
+        ├── PUT    /users/roles/{user_id}/role/              # 更新用户角色
+        ├── GET    /users/roles/enterprise/available/        # 获取企业可用角色
+        └── GET    /users/roles/contractor/available/        # 获取承包商可用角色
 ```
 
 ## 模块文件映射 (Module File Mapping)
@@ -89,9 +108,14 @@ routes/
 │   ├── project.py                → 供应商项目管理 (1 endpoint)
 │   └── plan.py                   → 计划管理 (2 endpoints)
 │
-└── ticket/                        → 工单管理模块
-    ├── __init__.py               → 工单路由注册
-    └── ticket.py                 → 工单管理 (5 endpoints)
+├── ticket/                        → 工单管理模块
+│   ├── __init__.py               → 工单路由注册
+│   └── ticket.py                 → 工单管理 (5 endpoints)
+│
+└── user/                          → 用户管理模块
+    ├── __init__.py               → 用户路由注册
+    ├── user.py                   → 用户管理 (7 endpoints)
+    └── role.py                   → 角色管理 (6 endpoints)
 ```
 
 ## 权限层级 (Permission Hierarchy)
@@ -188,7 +212,9 @@ FastAPI 应用 (FastAPI App)
 | 供应商管理 | 项目管理 | 1 |
 | 供应商管理 | 计划管理 | 2 |
 | 工单管理 | 工单管理 | 5 |
-| **总计** | - | **34** |
+| 用户管理 | 用户管理 | 7 |
+| 用户管理 | 角色管理 | 6 |
+| **总计** | - | **47** |
 
 ## 标签分类 (Tag Classification)
 
@@ -207,4 +233,7 @@ FastAPI 自动文档中的标签分类：
   - 计划管理
 - 📋 **工单后台管理** (Ticket Management)
   - 工单管理
+- 👥 **用户后台管理** (User Management)
+  - 用户管理
+  - 角色管理
 
