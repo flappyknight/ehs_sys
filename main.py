@@ -1,4 +1,18 @@
 # main.py
+"""
+FastAPI 应用主文件
+
+注意：大部分路由已迁移到 routes/ 模块中，本文件保留的是一些遗留路由和辅助函数。
+新的路由结构请参考 routes/ROUTES_STRUCTURE.md
+
+路由模块结构：
+- routes/admin/ - 系统账户后台管理
+- routes/enterprise_backend/ - 企业管理后台
+- routes/contractor_backend/ - 承包商管理后台
+- routes/ticket/ - 工单管理
+- routes/workflow/ - 工单流程管理
+- routes/auth.py - 认证相关
+"""
 from datetime import timedelta, datetime, timezone
 from typing import AsyncIterator, Union, Annotated
 
@@ -49,8 +63,8 @@ app.add_middleware(
 )
 
 # 注册路由
-from routes.user import router as user_router
-app.include_router(user_router, prefix="/user-management", tags=["用户管理"])
+from routes import main_router
+app.include_router(main_router)
 
 async def authenticate_user(username: str, password: str):
     user = await crud.get_user(app.state.engine, username)
@@ -77,54 +91,57 @@ from fastapi.security import OAuth2PasswordBearer
 # 在文件顶部添加OAuth2PasswordBearer
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-@app.post("/token")
-async def login_for_access_token(
-    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-) -> Token:
-    user = await authenticate_user(form_data.username, form_data.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    else:
-        access_token_expires = settings.access_token_expire_minutes
-        access_token = create_access_token(
-            data={"sub": user.username, "user_type": user.user_type}, expires_delta=access_token_expires
-        )
-    return Token(access_token=access_token, token_type="bearer")
+# 已迁移到 routes/auth.py
+# @app.post("/token")
+# async def login_for_access_token(
+#     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+# ) -> Token:
+#     user = await authenticate_user(form_data.username, form_data.password)
+#     if not user:
+#         raise HTTPException(
+#             status_code=status.HTTP_401_UNAUTHORIZED,
+#             detail="Incorrect username or password",
+#             headers={"WWW-Authenticate": "Bearer"},
+#         )
+#     else:
+#         access_token_expires = settings.access_token_expire_minutes
+#         access_token = create_access_token(
+#             data={"sub": user.username, "user_type": user.user_type}, expires_delta=access_token_expires
+#         )
+#     return Token(access_token=access_token, token_type="bearer")
 
 # 修改token获取函数
 def get_token_from_header(token: str = Depends(oauth2_scheme)):
     return token
 
-@app.get("/users/me/")
-async def read_users_me(token: str = Depends(get_token_from_header)) -> User:
-    try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
-    except InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    username = payload.get("sub")
-    user_type = payload.get("user_type")
-    user_db = await crud.get_user(app.state.engine, username, user_type)
-    
-    if not user_db:
-        raise HTTPException(status_code=401, detail="User not found")
-    
-    user = convert_user_db_to_response(user_db)
-    
-    # 确保返回完整的用户信息
-    if user.user_type == UserType.contractor:
-        user.contractor_user = user.contractor_user
-    elif user.user_type == UserType.enterprise:
-        user.enterprise_user = user.enterprise_user
-    return user
+# 已迁移到 routes/auth.py
+# @app.get("/users/me/")
+# async def read_users_me(token: str = Depends(get_token_from_header)) -> User:
+#     try:
+#         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+#     except InvalidTokenError:
+#         raise HTTPException(status_code=401, detail="Not authenticated")
+#     username = payload.get("sub")
+#     user_type = payload.get("user_type")
+#     user_db = await crud.get_user(app.state.engine, username, user_type)
+#     
+#     if not user_db:
+#         raise HTTPException(status_code=401, detail="User not found")
+#     
+#     user = convert_user_db_to_response(user_db)
+#     
+#     # 确保返回完整的用户信息
+#     if user.user_type == UserType.contractor:
+#         user.contractor_user = user.contractor_user
+#     elif user.user_type == UserType.enterprise:
+#         user.enterprise_user = user.enterprise_user
+#     return user
 
-@app.post("/logout")
-async def logout():
-    # 由于我们使用localStorage管理token，后端不需要做任何操作
-    return {"message": "Logged out"}
+# 已迁移到 routes/auth.py
+# @app.post("/logout")
+# async def logout():
+#     # 由于我们使用localStorage管理token，后端不需要做任何操作
+#     return {"message": "Logged out"}
 
 # 删除以下重复的代码块（第127-155行）：
 # def get_token_from_cookie(access_token: str | None = Cookie(default=None)):
@@ -241,9 +258,10 @@ async def get_projects(user: User = Depends(read_users_me)) -> List[ProjectListI
     return await convert_projects_to_list_response(app.state.engine, projects)
 
 
-@app.get("/test/", dependencies=[Depends(read_users_me)])
-async def test() :
-    return {"hello": "world"}
+# 已迁移到 routes/auth.py
+# @app.get("/test/", dependencies=[Depends(read_users_me)])
+# async def test() :
+#     return {"hello": "world"}
 
 @app.get("/projects/{project_id}/", dependencies=[Depends(read_users_me)])
 async def get_project_detail(project_id: int, user: User = Depends(read_users_me)) -> ProjectDetail:

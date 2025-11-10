@@ -1,243 +1,220 @@
-# 路由模块索引 (Routes Module Index)
+# 路由模块文档索引 (Routes Documentation Index)
 
-## 📂 文件清单
+## 快速导航
 
-### 核心文件 (Core Files)
-
-| 文件 | 大小 | 说明 | 接口数 |
-|------|------|------|--------|
-| `__init__.py` | 482B | 主路由注册中心 | - |
-| `dependencies.py` | 4.0KB | 共享依赖（认证、权限） | - |
-| `auth.py` | 1.7KB | 认证路由 | 4 |
-
-### 企业管理模块 (Enterprise Module)
-
-| 文件 | 说明 | 接口数 |
-|------|------|--------|
-| `enterprise/__init__.py` | 企业路由注册 | - |
-| `enterprise/enterprise.py` | 企业信息管理 | 3 |
-| `enterprise/department.py` | 部门管理 | 3 |
-| `enterprise/area.py` | 厂区管理 | 6 |
-| `enterprise/staff.py` | 人员管理 | 4 |
-| `enterprise/project.py` | 项目管理 | 2 |
-
-### 供应商管理模块 (Contractor Module)
-
-| 文件 | 说明 | 接口数 |
-|------|------|--------|
-| `contractor/__init__.py` | 供应商路由注册 | - |
-| `contractor/contractor.py` | 供应商信息管理 | 4 |
-| `contractor/project.py` | 供应商项目管理 | 1 |
-| `contractor/plan.py` | 计划管理 | 2 |
-
-### 工单管理模块 (Ticket Module)
-
-| 文件 | 说明 | 接口数 |
-|------|------|--------|
-| `ticket/__init__.py` | 工单路由注册 | - |
-| `ticket/ticket.py` | 工单管理（增删改查） | 5 |
-
-### 用户管理模块 (User Module)
-
-| 文件 | 说明 | 接口数 |
-|------|------|--------|
-| `user/__init__.py` | 用户路由注册 | - |
-| `user/user.py` | 用户管理（增删改查） | 7 |
-| `user/role.py` | 角色管理 | 6 |
-
-### 文档文件 (Documentation)
-
-| 文件 | 大小 | 说明 |
-|------|------|------|
-| `README.md` | 6.8KB | 详细的路由结构说明 |
-| `STRUCTURE.md` | 7.1KB | 可视化结构图和统计 |
-| `INTEGRATION_GUIDE.md` | 7.9KB | 集成指南（前后端） |
-| `SUMMARY.md` | 7.2KB | 项目重构总结 |
-| `QUICK_START.md` | 6.5KB | 5分钟快速开始 |
-| `INDEX.md` | 本文件 | 文件索引和导航 |
-
-## 📊 统计数据
-
-- **总文件数**: 23个文件
-  - Python 文件: 17个
-  - 文档文件: 6个（含本文件）
-- **总代码行数**: ~2,200行
-- **总接口数**: 47个
-- **模块数**: 4个主模块（企业、供应商、工单、用户）
-- **子模块数**: 11个功能子模块
-
-## 🗺️ 文档导航
-
-### 👉 新手入门
-1. **先看**: `QUICK_START.md` - 5分钟快速集成
-2. **再看**: `INTEGRATION_GUIDE.md` - 详细集成方案
-
-### 👉 深入了解
-1. **结构**: `STRUCTURE.md` - 完整的路由结构图
-2. **说明**: `README.md` - 详细的功能说明
-3. **总结**: `SUMMARY.md` - 项目重构总结
-
-### 👉 日常使用
-- 查找接口: 使用 `STRUCTURE.md` 的路由树
-- 添加功能: 参考 `README.md` 的设计原则
-- 问题排查: 查看 `QUICK_START.md` 的常见问题
-
-## 🎯 快速查找
-
-### 我想...
-
-#### 集成路由到 main.py
-→ 查看 `QUICK_START.md` 步骤 2-3
-
-#### 了解路由结构
-→ 查看 `STRUCTURE.md` 的路由树
-
-#### 添加新接口
-→ 查看 `README.md` 的"维护指南"
-
-#### 修改权限验证
-→ 编辑 `dependencies.py`
-
-#### 添加新模块
-→ 查看 `README.md` 的"未来扩展"
-
-#### 前端集成
-→ 查看 `INTEGRATION_GUIDE.md` 的"前端调整建议"
-
-#### 测试接口
-→ 查看 `QUICK_START.md` 的"测试新路由"
-
-## 📋 接口速查
-
-### 认证 (Authentication)
-```
-POST   /token              # 登录
-GET    /users/me/          # 获取用户信息
-POST   /logout             # 登出
-GET    /test/              # 测试
-```
-
-### 企业管理 (Enterprise)
-```
-# 企业信息
-POST   /api/enterprise/add/
-GET    /api/enterprise/list/
-POST   /api/enterprise/add_user/
-
-# 部门管理
-POST   /api/enterprise/departments/add/
-GET    /api/enterprise/departments/
-GET    /api/enterprise/departments/with-members/
-
-# 厂区管理
-POST   /api/enterprise/areas/
-GET    /api/enterprise/areas/
-GET    /api/enterprise/areas/{area_id}/
-PUT    /api/enterprise/areas/{area_id}/
-DELETE /api/enterprise/areas/{area_id}/
-GET    /api/enterprise/areas/by-department/{dept_id}/
-
-# 人员管理
-GET    /api/enterprise/staff/departments/{dept_id}/members/
-GET    /api/enterprise/staff/enterprise/{enterprise_id}/members/
-GET    /api/enterprise/staff/users/{user_id}/
-PUT    /api/enterprise/staff/users/{user_id}/
-
-# 项目管理
-GET    /api/enterprise/projects/
-GET    /api/enterprise/projects/{project_id}/
-```
-
-### 供应商管理 (Contractor)
-```
-# 供应商信息
-POST   /api/contractor/add/
-POST   /api/contractor/add_user/
-GET    /api/contractor/list/
-POST   /api/contractor/create-project/
-
-# 项目管理
-POST   /api/contractor/projects/add/
-
-# 计划管理
-POST   /api/contractor/plans/add/
-GET    /api/contractor/plans/{plan_id}/participants/
-```
-
-### 工单管理 (Ticket)
-```
-POST   /api/tickets/                    # 创建工单
-GET    /api/tickets/                    # 获取工单列表（支持筛选）
-GET    /api/tickets/{ticket_id}/        # 获取工单详情
-PUT    /api/tickets/{ticket_id}/        # 更新工单
-DELETE /api/tickets/{ticket_id}/        # 删除工单
-```
-
-### 用户管理 (User)
-```
-# 用户管理
-POST   /api/users/                              # 创建用户
-GET    /api/users/                              # 获取用户列表（支持筛选）
-GET    /api/users/{user_id}/                    # 获取用户详情
-PUT    /api/users/{user_id}/                    # 更新用户信息
-DELETE /api/users/{user_id}/                    # 删除用户（软删除）
-POST   /api/users/{user_id}/change-password/   # 修改密码
-POST   /api/users/{user_id}/reset-password/    # 重置密码（管理员）
-
-# 角色管理
-GET    /api/users/roles/                        # 获取角色列表
-GET    /api/users/roles/{role_type}/            # 获取角色详情
-GET    /api/users/roles/{role_type}/permissions/ # 获取角色权限
-PUT    /api/users/roles/{user_id}/role/         # 更新用户角色
-GET    /api/users/roles/enterprise/available/   # 获取企业可用角色
-GET    /api/users/roles/contractor/available/   # 获取承包商可用角色
-```
-
-## 🔧 维护信息
-
-### 版本历史
-- **v1.0** (2025-11-03): 初始版本，完整路由结构
-
-### 贡献者
-- 架构设计: AI Assistant
-- 代码实现: AI Assistant
-- 文档编写: AI Assistant
-
-### 许可证
-根据项目主许可证
-
-## 🚀 下一步
-
-### 立即行动
-1. [ ] 阅读 `QUICK_START.md`
-2. [ ] 在 main.py 中集成路由
-3. [ ] 测试所有接口
-4. [ ] 更新前端 API 调用
-
-### 后续优化
-1. [ ] 添加单元测试
-2. [ ] 实现接口缓存
-3. [ ] 添加请求日志
-4. [ ] 性能监控
-
-## 📞 获取帮助
-
-### 遇到问题？
-1. 先查看 `QUICK_START.md` 的"常见问题"
-2. 查看 FastAPI 自动文档 `/docs`
-3. 检查应用日志
-4. 查看相关源代码
-
-### 需要扩展？
-1. 参考 `README.md` 的"未来扩展"章节
-2. 查看现有模块的实现方式
-3. 遵循相同的代码风格和结构
+### 📚 总览文档
+- [路由结构说明](./ROUTES_STRUCTURE.md) - 完整的路由结构和开发指南
+- [重构总结](./RESTRUCTURE_SUMMARY.md) - 本次重构的详细说明和统计
 
 ---
 
-**最后更新**: 2025-11-03  
-**文档版本**: v1.0  
-**状态**: ✅ 完成
+## 🔐 认证模块
+- **文件**: `auth.py`
+- **前缀**: 无（直接挂载到根路径）
+- **功能**: 用户登录、登出、Token管理
 
-**提示**: 建议将本文件加入书签，作为路由模块的快速参考！
+---
 
+## 🛠️ 系统账户后台 (Admin)
+- **前缀**: `/admin`
+- **文档目录**: [admin/](./admin/)
+  - [README.md](./admin/README.md) - 模块说明
+  - [object_plan.md](./admin/object_plan.md) - 设计方案
+  - [interface_list.md](./admin/interface_list.md) - 接口文档
+
+**主要功能**:
+- 系统用户管理
+- 企业管理
+- 承包商管理
+
+---
+
+## 🏢 企业管理后台 (Enterprise Backend)
+- **前缀**: `/enterprise-backend`
+- **文档目录**: [enterprise_backend/](./enterprise_backend/)
+  - [README.md](./enterprise_backend/README.md) - 模块说明
+  - [object_plan.md](./enterprise_backend/object_plan.md) - 设计方案
+  - [interface_list.md](./enterprise_backend/interface_list.md) - 接口汇总
+
+### 子模块
+
+#### 1. 企业用户管理 (User Management)
+- **前缀**: `/enterprise-backend/user-management`
+- **文档**: [user_management/](./enterprise_backend/user_management/)
+  - [README.md](./enterprise_backend/user_management/README.md)
+  - [object_plan.md](./enterprise_backend/user_management/object_plan.md)
+  - [interface_list.md](./enterprise_backend/user_management/interface_list.md)
+- **功能**: 员工管理、部门管理、厂区管理
+
+#### 2. 企业承包商管理 (Contractor Management)
+- **前缀**: `/enterprise-backend/contractor-management`
+- **文档**: [contractor_management/](./enterprise_backend/contractor_management/)
+  - [README.md](./enterprise_backend/contractor_management/README.md)
+  - [object_plan.md](./enterprise_backend/contractor_management/object_plan.md)
+  - [interface_list.md](./enterprise_backend/contractor_management/interface_list.md)
+- **功能**: 承包商列表、合作项目管理
+
+#### 3. 企业工单管理 (Ticket Management)
+- **前缀**: `/enterprise-backend/ticket-management`
+- **文档**: [ticket_management/](./enterprise_backend/ticket_management/)
+  - [README.md](./enterprise_backend/ticket_management/README.md)
+  - [object_plan.md](./enterprise_backend/ticket_management/object_plan.md)
+  - [interface_list.md](./enterprise_backend/ticket_management/interface_list.md)
+- **功能**: 工单创建、审批、跟踪
+
+#### 4. 企业作业流程管理 (Workflow Management)
+- **前缀**: `/enterprise-backend/workflow-management`
+- **文档**: [workflow_management/](./enterprise_backend/workflow_management/)
+  - [README.md](./enterprise_backend/workflow_management/README.md)
+  - [object_plan.md](./enterprise_backend/workflow_management/object_plan.md)
+  - [interface_list.md](./enterprise_backend/workflow_management/interface_list.md)
+- **功能**: 计划审批、人员管理、签到管理
+
+#### 5. 企业权限管理 (Permission Management)
+- **前缀**: `/enterprise-backend/permission-management`
+- **文档**: [permission_management/](./enterprise_backend/permission_management/)
+  - [README.md](./enterprise_backend/permission_management/README.md)
+  - [object_plan.md](./enterprise_backend/permission_management/object_plan.md)
+  - [interface_list.md](./enterprise_backend/permission_management/interface_list.md)
+- **功能**: 角色管理、权限分配
+
+---
+
+## 🏗️ 承包商管理后台 (Contractor Backend)
+- **前缀**: `/contractor-backend`
+- **文档目录**: [contractor_backend/](./contractor_backend/)
+  - [README.md](./contractor_backend/README.md) - 模块说明
+  - [object_plan.md](./contractor_backend/object_plan.md) - 设计方案
+  - [interface_list.md](./contractor_backend/interface_list.md) - 接口汇总
+
+### 子模块
+
+#### 1. 承包商人员管理 (Staff Management)
+- **前缀**: `/contractor-backend/staff-management`
+- **文档**: [staff_management/](./contractor_backend/staff_management/)
+  - [README.md](./contractor_backend/staff_management/README.md)
+  - [object_plan.md](./contractor_backend/staff_management/object_plan.md)
+  - [interface_list.md](./contractor_backend/staff_management/interface_list.md)
+- **功能**: 员工管理、资质管理
+
+#### 2. 工单浏览 (Ticket View)
+- **前缀**: `/contractor-backend/ticket-view`
+- **文档**: [ticket_view/](./contractor_backend/ticket_view/)
+  - [README.md](./contractor_backend/ticket_view/README.md)
+  - [object_plan.md](./contractor_backend/ticket_view/object_plan.md)
+  - [interface_list.md](./contractor_backend/ticket_view/interface_list.md)
+- **功能**: 工单查看、执行上报
+
+#### 3. 合作申请管理 (Cooperation Request)
+- **前缀**: `/contractor-backend/cooperation-request`
+- **文档**: [cooperation_request/](./contractor_backend/cooperation_request/)
+  - [README.md](./contractor_backend/cooperation_request/README.md)
+  - [object_plan.md](./contractor_backend/cooperation_request/object_plan.md)
+  - [interface_list.md](./contractor_backend/cooperation_request/interface_list.md)
+- **功能**: 合作邀请处理、项目查看
+
+---
+
+## 📋 工单模块 (Ticket)
+- **前缀**: `/tickets`
+- **文档目录**: [ticket/](./ticket/)
+  - [README.md](./ticket/README.md) - 模块说明
+  - [CHANGELOG.md](./ticket/CHANGELOG.md) - 变更日志
+  - [object_plan.md](./ticket/object_plan.md) - 设计方案
+  - [interface_list.md](./ticket/interface_list.md) - 接口文档
+
+**主要功能**:
+- 工单创建
+- 工单查看（根据权限自动过滤）
+- 工单更新
+- 工单删除
+
+---
+
+## 🔄 工单流程模块 (Workflow)
+- **前缀**: `/workflow`
+- **文档目录**: [workflow/](./workflow/)
+  - [README.md](./workflow/README.md) - 模块说明
+  - [object_plan.md](./workflow/object_plan.md) - 设计方案
+  - [interface_list.md](./workflow/interface_list.md) - 接口文档
+
+**主要功能**:
+- 流程定义
+- 流程实例管理
+- 审批处理
+
+---
+
+## 📖 文档说明
+
+### 文档类型
+
+#### README.md
+- **内容**: 模块概述、主要功能、权限要求
+- **适合**: 快速了解模块功能
+
+#### object_plan.md
+- **内容**: 详细的设计方案、数据模型、业务逻辑
+- **适合**: 开发人员深入了解模块设计
+
+#### interface_list.md
+- **内容**: 完整的 API 接口文档
+- **适合**: 前端开发、接口测试、API 集成
+
+---
+
+## 🔍 快速查找
+
+### 按功能查找
+
+| 功能 | 模块 | 文档链接 |
+|------|------|---------|
+| 用户登录 | auth | [auth.py](./auth.py) |
+| 员工管理 | enterprise_backend/user_management | [文档](./enterprise_backend/user_management/) |
+| 承包商管理 | enterprise_backend/contractor_management | [文档](./enterprise_backend/contractor_management/) |
+| 工单管理 | ticket | [文档](./ticket/) |
+| 工单审批 | workflow | [文档](./workflow/) |
+| 人员签到 | enterprise_backend/workflow_management | [文档](./enterprise_backend/workflow_management/) |
+| 资质管理 | contractor_backend/staff_management | [文档](./contractor_backend/staff_management/) |
+
+### 按用户类型查找
+
+| 用户类型 | 可用模块 |
+|---------|---------|
+| 系统管理员 | admin, 所有模块 |
+| 企业管理员 | enterprise_backend (全部子模块) |
+| 企业现场人员 | enterprise_backend (部分功能) |
+| 承包商管理员 | contractor_backend (全部子模块) |
+| 承包商作业人员 | contractor_backend (部分功能) |
+
+---
+
+## 🚀 开发指南
+
+### 查看接口文档
+1. 找到对应的模块目录
+2. 打开 `interface_list.md`
+3. 查看接口路径、参数和响应
+
+### 了解设计方案
+1. 找到对应的模块目录
+2. 打开 `object_plan.md`
+3. 查看数据模型和业务逻辑
+
+### 快速上手
+1. 阅读 [ROUTES_STRUCTURE.md](./ROUTES_STRUCTURE.md)
+2. 查看 [RESTRUCTURE_SUMMARY.md](./RESTRUCTURE_SUMMARY.md)
+3. 根据需要查看具体模块文档
+
+---
+
+## 📝 更新日志
+
+- **2024-11-10**: 完成路由重构，创建完整文档体系
+- **版本**: v1.0
+
+---
+
+## 📞 联系方式
+
+如有问题或建议，请联系项目负责人。
