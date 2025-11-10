@@ -1,6 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import Login from '@/views/UserLogin.vue'
+import Register from '@/views/UserRegister.vue'
+import ForgotPassword from '@/views/ForgotPassword.vue'
+import SettlementChoice from '@/views/SettlementChoice.vue'
+import EnterpriseSettlement from '@/views/EnterpriseSettlement.vue'
+import ContractorSettlement from '@/views/ContractorSettlement.vue'
 import Dashboard from '@/views/UserDashboard.vue'
 import ProjectList from '@/views/ProjectList.vue'
 import ProjectDetail from '@/views/ProjectDetail.vue'
@@ -18,6 +23,36 @@ const router = createRouter({
       name: 'Login',
       component: Login,
       meta: { requiresGuest: true }
+    },
+    {
+      path: '/register',
+      name: 'Register',
+      component: Register,
+      meta: { requiresGuest: true }
+    },
+    {
+      path: '/forgot-password',
+      name: 'ForgotPassword',
+      component: ForgotPassword,
+      meta: { requiresGuest: true }
+    },
+    {
+      path: '/settlement',
+      name: 'SettlementChoice',
+      component: SettlementChoice
+      // 入驻申请页面允许任何人访问
+    },
+    {
+      path: '/settlement/enterprise',
+      name: 'EnterpriseSettlement',
+      component: EnterpriseSettlement
+      // 入驻申请页面允许任何人访问
+    },
+    {
+      path: '/settlement/contractor',
+      name: 'ContractorSettlement',
+      component: ContractorSettlement
+      // 入驻申请页面允许任何人访问
     },
     {
       path: '/',
@@ -72,16 +107,22 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
 
-  // 检查用户认证状态
-  if (!authStore.isAuthenticated) {
-    await authStore.checkAuth()
-  }
+  // 只有在需要认证的页面才检查用户状态
+  if (to.meta.requiresAuth || to.meta.requiresGuest) {
+    // 检查用户认证状态
+    if (!authStore.isAuthenticated) {
+      await authStore.checkAuth()
+    }
 
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    next('/login')
-  } else if (to.meta.requiresGuest && authStore.isAuthenticated) {
-    next('/dashboard')
+    if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+      next('/login')
+    } else if (to.meta.requiresGuest && authStore.isAuthenticated) {
+      next('/dashboard')
+    } else {
+      next()
+    }
   } else {
+    // 对于不需要认证的页面，直接放行
     next()
   }
 })

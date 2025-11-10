@@ -112,3 +112,9 @@ def get_user_enterprise_id(user: User) -> int:
         return user.enterprise_user.enterprise_id
     return 0
 
+
+async def get_engine():
+    """获取数据库引擎"""
+    from main import app  # 延迟导入避免循环依赖
+    return app.state.engine
+

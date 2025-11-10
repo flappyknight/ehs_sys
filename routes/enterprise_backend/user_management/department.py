@@ -19,7 +19,7 @@ from routes.dependencies import get_current_user, authenticate_enterprise_level
 router = APIRouter()
 
 
-@router.post("/add/", dependencies=[Depends(authenticate_enterprise_level)])
+@router.post("/", dependencies=[Depends(authenticate_enterprise_level)])
 async def add_department(department: Department):
     """添加部门"""
     from main import app

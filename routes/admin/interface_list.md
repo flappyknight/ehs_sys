@@ -173,8 +173,8 @@
 ## 企业管理接口
 
 ### 9. 创建企业
-- **接口路径**: `POST /admin/enterprises`
-- **功能描述**: 创建新企业
+- **接口路径**: `POST /admin/enterprises/`
+- **功能描述**: 创建新企业（初始状态为待审批）
 - **权限要求**: 系统管理员
 - **请求参数**:
   ```json
@@ -195,14 +195,14 @@
   ```
 
 ### 10. 获取企业列表
-- **接口路径**: `GET /admin/enterprises`
-- **功能描述**: 获取所有企业列表
+- **接口路径**: `GET /admin/enterprises/`
+- **功能描述**: 获取所有企业列表，支持按状态筛选和搜索
 - **权限要求**: 系统管理员
 - **请求参数**:
-  - `keyword` (可选): 搜索关键词
-  - `status` (可选): 按状态筛选
-  - `page` (可选): 页码
-  - `page_size` (可选): 每页数量
+  - `status` (可选): 状态筛选 (pending/approved/rejected)
+  - `keyword` (可选): 搜索关键词（企业名称）
+  - `page` (可选): 页码，默认 1
+  - `page_size` (可选): 每页数量，默认 20
 - **响应数据**:
   ```json
   {
@@ -214,9 +214,9 @@
         "company_id": 1,
         "name": "XX科技有限公司",
         "type": "科技公司",
+        "status": "approved",
         "contact_person": "李四",
         "contact_phone": "13900139000",
-        "status": true,
         "created_at": "2024-01-01T00:00:00"
       }
     ]
@@ -267,8 +267,8 @@
   ```
 
 ### 13. 删除企业
-- **接口路径**: `DELETE /admin/enterprises/{company_id}`
-- **功能描述**: 删除企业（软删除）
+- **接口路径**: `DELETE /admin/enterprises/{company_id}/`
+- **功能描述**: 删除企业（软删除，需确保无活跃员工）
 - **权限要求**: 系统管理员
 - **请求参数**: 路径参数 `company_id`
 - **响应数据**:
@@ -276,6 +276,67 @@
   {
     "message": "企业删除成功"
   }
+  ```
+- **错误响应**:
+  - 400: 企业下还有活跃员工，无法删除
+
+### 13.1 审批企业注册
+- **接口路径**: `POST /admin/enterprises/{company_id}/approve/`
+- **功能描述**: 审批企业的注册申请
+- **权限要求**: 系统管理员
+- **请求参数**:
+  - `approved` (必填): true=批准, false=拒绝
+  - `comment` (可选): 审批意见
+- **响应数据**:
+  ```json
+  {
+    "message": "企业注册已批准",
+    "status": "approved"
+  }
+  ```
+
+### 13.2 为企业创建超级管理员
+- **接口路径**: `POST /admin/enterprises/{company_id}/admin/`
+- **功能描述**: 为新批准的企业创建第一个管理员账户
+- **权限要求**: 系统管理员
+- **请求参数**:
+  ```json
+  {
+    "name": "张三",
+    "phone": "13800138000",
+    "email": "zhangsan@example.com",
+    "position": "总经理",
+    "department_id": null
+  }
+  ```
+- **响应数据**:
+  ```json
+  {
+    "message": "企业管理员创建成功",
+    "user_id": 1,
+    "username": "13800138000",
+    "default_password": "138000"
+  }
+  ```
+
+### 13.3 获取企业管理员列表
+- **接口路径**: `GET /admin/enterprises/{company_id}/admins/`
+- **功能描述**: 查看指定企业的所有管理员账户
+- **权限要求**: 系统管理员
+- **请求参数**: 路径参数 `company_id`
+- **响应数据**:
+  ```json
+  [
+    {
+      "user_id": 1,
+      "name": "张三",
+      "phone": "13800138000",
+      "email": "zhangsan@example.com",
+      "position": "总经理",
+      "status": true,
+      "created_at": "2024-01-01T00:00:00"
+    }
+  ]
   ```
 
 ---
@@ -379,8 +440,8 @@
   ```
 
 ### 18. 删除承包商
-- **接口路径**: `DELETE /admin/contractors/{contractor_id}`
-- **功能描述**: 删除承包商（软删除）
+- **接口路径**: `DELETE /admin/contractors/{contractor_id}/`
+- **功能描述**: 删除承包商（软删除，需确保无活跃员工和项目）
 - **权限要求**: 系统管理员
 - **请求参数**: 路径参数 `contractor_id`
 - **响应数据**:
@@ -388,6 +449,66 @@
   {
     "message": "承包商删除成功"
   }
+  ```
+- **错误响应**:
+  - 400: 承包商下还有活跃员工或进行中的项目，无法删除
+
+### 18.1 审批承包商注册
+- **接口路径**: `POST /admin/contractors/{contractor_id}/approve/`
+- **功能描述**: 审批承包商的注册申请
+- **权限要求**: 系统管理员
+- **请求参数**:
+  - `approved` (必填): true=批准, false=拒绝
+  - `comment` (可选): 审批意见
+- **响应数据**:
+  ```json
+  {
+    "message": "承包商注册已批准",
+    "status": "approved"
+  }
+  ```
+
+### 18.2 为承包商创建超级管理员
+- **接口路径**: `POST /admin/contractors/{contractor_id}/admin/`
+- **功能描述**: 为新批准的承包商创建第一个管理员账户
+- **权限要求**: 系统管理员
+- **请求参数**:
+  ```json
+  {
+    "name": "李四",
+    "phone": "13900139000",
+    "id_number": "110101199001011234",
+    "work_type": "项目经理"
+  }
+  ```
+- **响应数据**:
+  ```json
+  {
+    "message": "承包商管理员创建成功",
+    "user_id": 10,
+    "username": "13900139000",
+    "default_password": "139000"
+  }
+  ```
+
+### 18.3 获取承包商管理员列表
+- **接口路径**: `GET /admin/contractors/{contractor_id}/admins/`
+- **功能描述**: 查看指定承包商的所有管理员账户
+- **权限要求**: 系统管理员
+- **请求参数**: 路径参数 `contractor_id`
+- **响应数据**:
+  ```json
+  [
+    {
+      "user_id": 10,
+      "name": "李四",
+      "phone": "13900139000",
+      "id_number": "110101199001011234",
+      "work_type": "项目经理",
+      "status": true,
+      "created_at": "2024-01-01T00:00:00"
+    }
+  ]
   ```
 
 ---

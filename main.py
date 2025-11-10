@@ -66,30 +66,13 @@ app.add_middleware(
 from routes import main_router
 app.include_router(main_router)
 
-async def authenticate_user(username: str, password: str):
-    user = await crud.get_user(app.state.engine, username)
-    if not user:
-        return False
-    if not pwd.verify_password(password, user.password_hash):
-        return False
-    return user
-
-
-def create_access_token(data: dict, expires_delta: Union[timedelta, None] = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
-    else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
-    return encoded_jwt
-
-
-from fastapi.security import OAuth2PasswordBearer
-
-# 在文件顶部添加OAuth2PasswordBearer
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+# 导入共享依赖项（认证相关函数已迁移到 routes/dependencies.py）
+from routes.dependencies import (
+    get_current_user,
+    authenticate_enterprise_level,
+    authenticate_contractor_level,
+    get_user_enterprise_id
+)
 
 # 已迁移到 routes/auth.py
 # @app.post("/token")
@@ -109,10 +92,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 #             data={"sub": user.username, "user_type": user.user_type}, expires_delta=access_token_expires
 #         )
 #     return Token(access_token=access_token, token_type="bearer")
-
-# 修改token获取函数
-def get_token_from_header(token: str = Depends(oauth2_scheme)):
-    return token
 
 # 已迁移到 routes/auth.py
 # @app.get("/users/me/")
@@ -173,20 +152,9 @@ def get_token_from_header(token: str = Depends(oauth2_scheme)):
 #     return user
 
 
-async def authenticate_enterprise_level(user: User=Depends(read_users_me)):
-    if user.user_type != UserType.admin and user.user_type != UserType.enterprise:  # 无权访问该接口
-        raise HTTPException(status_code=401, detail="Access to this api is not permitted! higher access level needed!")
-    if user.user_type == UserType.enterprise and PermissionLevel.map(user.enterprise_user.role_type) < PermissionLevel.manager:
-        raise HTTPException(status_code=401, detail="Access to this api is not permitted! higher access level needed!")
-    return user
-
-async def authenticate_contractor_level(user: User=Depends(read_users_me)):
-    if user.user_type != UserType.admin:
-        if user.user_type == UserType.contractor and PermissionLevel.map(user.contractor_user.role_type) < PermissionLevel.approver:
-            raise HTTPException(status_code=401, detail="Access to this api is not permitted! higher access level needed!")
-        if user.user_type == UserType.enterprise and PermissionLevel.map(user.enterprise_user.role_type) < PermissionLevel.site_staff:
-            raise HTTPException(status_code=401, detail="Access to this api is not permitted! higher access level needed!")
-    return user
+# 已迁移到 routes/dependencies.py
+# async def authenticate_enterprise_level(user: User=Depends(get_current_user)):
+# async def authenticate_contractor_level(user: User=Depends(get_current_user)):
 
 
 @app.post("/enterprise/add/", dependencies=[Depends(authenticate_enterprise_level)])
@@ -252,27 +220,27 @@ async def add_plan(plan: Plan):
     return plan_db
 
 @app.get("/projects/")
-async def get_projects(user: User = Depends(read_users_me)) -> List[ProjectListItem]:
+async def get_projects(user: User = Depends(get_current_user)) -> List[ProjectListItem]:
     """获取项目列表，根据用户权限过滤"""
     projects = await crud.get_projects_for_user(app.state.engine, user)
     return await convert_projects_to_list_response(app.state.engine, projects)
 
 
 # 已迁移到 routes/auth.py
-# @app.get("/test/", dependencies=[Depends(read_users_me)])
+# @app.get("/test/", dependencies=[Depends(get_current_user)])
 # async def test() :
 #     return {"hello": "world"}
 
-@app.get("/projects/{project_id}/", dependencies=[Depends(read_users_me)])
-async def get_project_detail(project_id: int, user: User = Depends(read_users_me)) -> ProjectDetail:
+@app.get("/projects/{project_id}/", dependencies=[Depends(get_current_user)])
+async def get_project_detail(project_id: int, user: User = Depends(get_current_user)) -> ProjectDetail:
     """获取项目详情，包含计划列表"""
     project = await crud.get_project_detail(app.state.engine, project_id, user)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在或无权限访问")
     return await convert_project_to_detail_response(app.state.engine, project)
 
-@app.get("/plans/{plan_id}/participants/", dependencies=[Depends(read_users_me)])
-async def get_plan_participants(plan_id: int, user: User = Depends(read_users_me)) -> List[PlanParticipant]:
+@app.get("/plans/{plan_id}/participants/", dependencies=[Depends(get_current_user)])
+async def get_plan_participants(plan_id: int, user: User = Depends(get_current_user)) -> List[PlanParticipant]:
     """获取计划的参与人员列表"""
     # 这里可以添加权限检查，确保用户有权限查看该计划
     participants = await crud.get_plan_participants(app.state.engine, plan_id)
@@ -290,7 +258,7 @@ async def get_plan_participants(plan_id: int, user: User = Depends(read_users_me
     return result
 
 @app.get("/contractors/")
-async def get_contractors(user: User = Depends(read_users_me)) -> List[ContractorListItem]:
+async def get_contractors(user: User = Depends(get_current_user)) -> List[ContractorListItem]:
     """获取与当前企业有合作的承包商列表（保证数据隔离）"""
     if user.user_type != UserType.enterprise:
         raise HTTPException(status_code=403, detail="只有企业用户可以查看承包商列表")
@@ -344,16 +312,10 @@ async def create_contractor_project(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"创建失败: {str(e)}")
 
-# 添加一个辅助函数来获取用户的企业ID
-def get_user_enterprise_id(user: User) -> int:
-    """获取用户的企业ID"""
-    if user.user_type == UserType.enterprise and user.enterprise_user:
-        return user.enterprise_user.enterprise_id
-    return 0
-
 # 企业相关 API 端点
+# 注意：get_user_enterprise_id 已迁移到 routes/dependencies.py
 @app.get("/enterprises/")
-async def get_enterprises(user: User = Depends(read_users_me)) -> List[EnterpriseListItem]:
+async def get_enterprises(user: User = Depends(get_current_user)) -> List[EnterpriseListItem]:
     """获取企业列表"""
     try:
         # 只有管理员可以查看所有企业
@@ -377,7 +339,7 @@ async def get_enterprises(user: User = Depends(read_users_me)) -> List[Enterpris
 @app.get("/departments/")
 async def get_departments(
     enterprise_id: int = Query(default=None, description="企业ID，不传则获取当前用户企业的部门"),
-    user: User = Depends(read_users_me)
+    user: User = Depends(get_current_user)
 ) -> List[DepartmentListItem]:
     """获取部门列表"""
     try:
@@ -431,7 +393,7 @@ async def create_area(area: Area):
 @app.get("/areas/")
 async def get_areas(
     enterprise_id: int = Query(default=None, description="企业ID，不传则获取所有厂区"),
-    user: User = Depends(read_users_me)
+    user: User = Depends(get_current_user)
 ) -> List[AreaListItem]:
     """获取厂区列表"""
     try:
@@ -445,7 +407,7 @@ async def get_areas(
         raise HTTPException(status_code=400, detail=f"获取厂区列表失败: {str(e)}")
 
 @app.get("/areas/{area_id}/")
-async def get_area_detail(area_id: int, user: User = Depends(read_users_me)) -> Area:
+async def get_area_detail(area_id: int, user: User = Depends(get_current_user)) -> Area:
     """获取厂区详情"""
     try:
         # 自动从用户身份获取企业ID
@@ -470,7 +432,7 @@ async def get_area_detail(area_id: int, user: User = Depends(read_users_me)) -> 
         raise HTTPException(status_code=400, detail=f"获取厂区详情失败: {str(e)}")
 
 @app.put("/areas/{area_id}/", dependencies=[Depends(authenticate_enterprise_level)])
-async def update_area(area_id: int, area_data: Area, user: User = Depends(read_users_me)):
+async def update_area(area_id: int, area_data: Area, user: User = Depends(get_current_user)):
     """更新厂区信息"""
     try:
         # 自动从用户身份获取企业ID
@@ -502,7 +464,7 @@ async def update_area(area_id: int, area_data: Area, user: User = Depends(read_u
         raise HTTPException(status_code=400, detail=f"更新厂区失败: {str(e)}")
 
 @app.delete("/areas/{area_id}/", dependencies=[Depends(authenticate_enterprise_level)])
-async def delete_area(area_id: int, user: User = Depends(read_users_me)):
+async def delete_area(area_id: int, user: User = Depends(get_current_user)):
     """删除厂区"""
     try:
         # 自动从用户身份获取企业ID
@@ -527,7 +489,7 @@ async def delete_area(area_id: int, user: User = Depends(read_users_me)):
         raise HTTPException(status_code=400, detail=f"删除厂区失败: {str(e)}")
 
 @app.get("/departments/{dept_id}/areas/")
-async def get_department_areas(dept_id: int, user: User = Depends(read_users_me)) -> List[Area]:
+async def get_department_areas(dept_id: int, user: User = Depends(get_current_user)) -> List[Area]:
     """获取指定部门的厂区（仅限当前企业）"""
     try:
         # 自动从用户身份获取企业ID

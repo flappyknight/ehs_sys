@@ -3,8 +3,10 @@
 ## 快速导航
 
 ### 📚 总览文档
+- [模块说明](./README.md) - 快速了解路由模块
 - [路由结构说明](./ROUTES_STRUCTURE.md) - 完整的路由结构和开发指南
 - [重构总结](./RESTRUCTURE_SUMMARY.md) - 本次重构的详细说明和统计
+- [清理总结](./CLEANUP_SUMMARY.md) - 路由清理和迁移说明
 
 ---
 

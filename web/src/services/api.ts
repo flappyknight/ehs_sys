@@ -188,13 +188,10 @@ export class ApiService {
 
     const response = await fetch(url, config)
 
-    // 处理401错误，自动清除token并跳转登录页
+    // 处理401错误，自动清除token
     if (response.status === 401) {
       TokenManager.removeToken()
-      // 如果当前不在登录页，则跳转到登录页
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login'
-      }
+      // 不自动跳转，让路由守卫或组件自己处理
       throw new Error('未授权访问，请重新登录')
     }
 
@@ -221,6 +218,14 @@ export class ApiService {
     // 登录成功后保存token
     TokenManager.setToken(result.access_token)
     return result
+  }
+
+  // 注册
+  async register(registerData: any): Promise<{ message: string; user_id: number }> {
+    return this.request<{ message: string; user_id: number }>('/register', {
+      method: 'POST',
+      body: JSON.stringify(registerData),
+    })
   }
 
   // 登出

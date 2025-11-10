@@ -8,14 +8,14 @@ from fastapi import APIRouter
 router = APIRouter()
 
 # 导入子模块路由
-# from .user_management import router as user_mgmt_router
+from .user_management import router as user_mgmt_router
 # from .contractor_management import router as contractor_mgmt_router
 # from .ticket_management import router as ticket_mgmt_router
 # from .workflow_management import router as workflow_mgmt_router
 # from .permission_management import router as permission_mgmt_router
 
 # 注册子模块路由
-# router.include_router(user_mgmt_router, prefix="/user-management", tags=["企业用户管理"])
+router.include_router(user_mgmt_router, prefix="/user-management", tags=["企业用户管理"])
 # router.include_router(contractor_mgmt_router, prefix="/contractor-management", tags=["企业承包商管理"])
 # router.include_router(ticket_mgmt_router, prefix="/ticket-management", tags=["企业工单管理"])
 # router.include_router(workflow_mgmt_router, prefix="/workflow-management", tags=["企业作业流程管理"])

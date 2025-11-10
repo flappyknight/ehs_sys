@@ -1,6 +1,25 @@
 export interface LoginForm {
   username: string
   password: string
+  userType?: 'enterprise' | 'contractor' | 'admin'
+}
+
+export interface RegisterForm {
+  username: string
+  password: string
+  confirmPassword: string
+  userType: 'enterprise' | 'contractor' | 'admin'
+  name: string
+  phone: string
+  email?: string
+  // 企业用户特有字段
+  companyName?: string
+  position?: string
+  // 承包商用户特有字段
+  contractorCompanyName?: string
+  // 系统管理员特有字段
+  adminCode?: string
+  department?: string
 }
 
 export interface Token {

@@ -15,6 +15,24 @@ class UserType(str, Enum):
     pass
 
 
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+    userType: str  # 'enterprise', 'contractor', or 'admin'
+    name: str
+    phone: str
+    email: Optional[str] = None
+    # 企业用户特有字段
+    companyName: Optional[str] = None
+    position: Optional[str] = None
+    # 承包商用户特有字段
+    contractorCompanyName: Optional[str] = None
+    # 系统管理员特有字段
+    adminCode: Optional[str] = None
+    department: Optional[str] = None
+    pass
+
+
 class PermissionLevel(IntEnum):
     manager = 3
     approver = 2

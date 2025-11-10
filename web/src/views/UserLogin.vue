@@ -5,6 +5,20 @@
 
       <form @submit.prevent="handleLogin" class="login-form">
         <div class="form-group">
+          <label for="userType">身份选择</label>
+          <select
+            id="userType"
+            v-model="form.userType"
+            class="form-select"
+            :disabled="authStore.loading"
+          >
+            <option value="enterprise">企业</option>
+            <option value="contractor">承包商</option>
+            <option value="admin">系统管理</option>
+          </select>
+        </div>
+
+        <div class="form-group">
           <label for="username">用户名</label>
           <input
             id="username"
@@ -39,6 +53,38 @@
         >
           {{ authStore.loading ? '登录中...' : '登录' }}
         </button>
+
+        <div class="action-links">
+          <button
+            type="button"
+            class="link-button"
+            @click="goToRegister"
+            :disabled="authStore.loading"
+          >
+            注册账号
+          </button>
+          <span class="separator">|</span>
+          <button
+            type="button"
+            class="link-button"
+            @click="goToForgotPassword"
+            :disabled="authStore.loading"
+          >
+            忘记密码
+          </button>
+        </div>
+
+        <div class="settlement-section">
+          <p class="settlement-text">企业或承包商入驻</p>
+          <button
+            type="button"
+            class="settlement-link"
+            @click="goToSettlement"
+            :disabled="authStore.loading"
+          >
+            立即申请 →
+          </button>
+        </div>
       </form>
     </div>
   </div>
@@ -55,7 +101,8 @@ const authStore = useAuthStore()
 
 const form = reactive<LoginForm>({
   username: '',
-  password: ''
+  password: '',
+  userType: 'enterprise'
 })
 
 const handleLogin = async () => {
@@ -67,6 +114,18 @@ const handleLogin = async () => {
     router.push('/dashboard')
   }
   // 错误信息已经在 auth store 中设置，模板会自动显示
+}
+
+const goToRegister = () => {
+  router.push('/register')
+}
+
+const goToForgotPassword = () => {
+  router.push('/forgot-password')
+}
+
+const goToSettlement = () => {
+  router.push('/settlement')
 }
 </script>
 
@@ -114,7 +173,8 @@ const handleLogin = async () => {
   color: #555;
 }
 
-.form-group input {
+.form-group input,
+.form-select {
   padding: 12px;
   border: 1px solid #ddd;
   border-radius: 4px;
@@ -122,14 +182,21 @@ const handleLogin = async () => {
   transition: border-color 0.3s;
 }
 
-.form-group input:focus {
+.form-group input:focus,
+.form-select:focus {
   outline: none;
   border-color: #007bff;
 }
 
-.form-group input:disabled {
+.form-group input:disabled,
+.form-select:disabled {
   background-color: #f8f9fa;
   cursor: not-allowed;
+}
+
+.form-select {
+  cursor: pointer;
+  background-color: white;
 }
 
 .error-message {
@@ -160,6 +227,75 @@ const handleLogin = async () => {
 
 .login-button:disabled {
   background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.action-links {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding-top: 16px;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: #007bff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: color 0.3s;
+  padding: 4px 8px;
+}
+
+.link-button:hover:not(:disabled) {
+  color: #0056b3;
+  text-decoration: underline;
+}
+
+.link-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.separator {
+  color: #ddd;
+  font-size: 14px;
+}
+
+.settlement-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #eee;
+  text-align: center;
+}
+
+.settlement-text {
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.settlement-link {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.settlement-link:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+}
+
+.settlement-link:disabled {
+  opacity: 0.6;
   cursor: not-allowed;
 }
 </style>
