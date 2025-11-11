@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from api.model import Token, User, RegisterRequest
 from config import settings
 from core.password import get_password_hash
-from db.models import User as DBUser, Company, EnterpriseUser, Contractor, ContractorUser
+from db.models import User as DBUser, EnterpriseUser, Contractor, ContractorUser
 from .dependencies import (
     authenticate_user,
     create_access_token,

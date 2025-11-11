@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import List
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload  # 添加这个导入
 
@@ -32,21 +33,9 @@ async def get_user_count(engine) -> int:
     return count
 
 
-async def create_enterprise(engine, enterprise: api.Enterprise):
-    enterprise_db = Company(
-        name=enterprise.name,
-        type=enterprise.type,
-    )
-    async with get_session(engine) as session:
-        session.add(enterprise_db)
-        await session.commit()
-        await session.refresh(enterprise_db)
-    return enterprise_db
-
 async def create_enterprise_user(engine, enterprise_user: api.EnterpriseUser, user: api.User|None=None):
     enterprise_user_db = EnterpriseUser(
-        company_id = enterprise_user.enterprise_id,
-        dept_id = enterprise_user.department_id,
+        enterprise_id = enterprise_user.enterprise_id,
         name = enterprise_user.name,
         phone = enterprise_user.phone,
         email = enterprise_user.email,
@@ -89,19 +78,6 @@ async def create_user(engine, username: str, password_hash: str, user_type: str,
         await session.commit()
         await session.refresh(user)
     return user
-
-
-async def create_department(engine, department: api.Department):
-    department_db = Department(
-        company_id=department.enterprise_id,
-        name=department.name,
-        parent_id=department.parent_id
-    )
-    async with get_session(engine) as session:
-        session.add(department_db)
-        await session.commit()
-        await session.refresh(department_db)
-    return department_db
 
 
 async def create_contractor(engine, contractor: api.Contractor):
@@ -159,24 +135,6 @@ async def create_project(engine, project: api.Project):
         await session.commit()
         await session.refresh(project_db)
     return project_db
-
-async def create_plan(engine, plan: api.Plan):
-    plan_db = EntryPlan(
-        project_id=plan.project_id,
-        plan_date=plan.plan_date
-    )
-
-    async with get_session(engine) as session:
-        session.add(plan_db)
-        await session.flush()
-        await session.refresh(plan_db)
-        plan_workers = [EntryPlanUser(project_id=plan_db.project_id, plan_id=plan_db.plan_id,
-                                      plan_date=plan_db.plan_id, user_id=cu_id)
-                        for cu_id in plan.workers]
-        session.add_all(plan_workers)
-        await session.commit()
-    return plan_db
-
 
 # 使用示例
 async def main():
@@ -236,17 +194,6 @@ async def get_project_detail(engine, project_id: int, user: api.User) -> Contrac
         project = result.scalars().first()  # 使用 scalars().first() 而不是 first()
         return project
 
-async def get_plan_participants(engine, plan_id: int) -> List[ContractorUser]:
-    """获取计划的参与人员列表"""
-    async with get_session(engine) as session:
-        statement = select(ContractorUser).join(
-            EntryPlanUser, ContractorUser.user_id == EntryPlanUser.user_id
-        ).where(EntryPlanUser.plan_id == plan_id)
-        
-        result = await session.exec(statement)
-        participants = result.scalars().all()  # 使用 scalars().all() 而不是 all()
-        return participants
-
 async def get_contractor_by_id(engine, contractor_id: int) -> Contractor|None:
     """根据承包商ID获取承包商信息"""
     async with get_session(engine) as session:
@@ -254,30 +201,6 @@ async def get_contractor_by_id(engine, contractor_id: int) -> Contractor|None:
         result = await session.exec(statement)
         contractor = result.scalars().first()  # 使用 scalars() 确保返回模型对象
         return contractor
-
-async def check_user_registration(engine, user_id: int, plan_id: int) -> bool:
-    """检查用户是否已经登记"""
-    async with get_session(engine) as session:
-        # 查找该用户在该计划中的EntryPlanUser记录
-        plan_user_statement = select(EntryPlanUser).where(
-            EntryPlanUser.user_id == user_id,
-            EntryPlanUser.plan_id == plan_id
-        )
-        plan_user_result = await session.exec(plan_user_statement)
-        plan_user = plan_user_result.scalars().first()  # 使用 scalars().first()
-        
-        if not plan_user:
-            return False
-        
-        # 检查是否有对应的登记记录
-        register_statement = select(EntryRegister).where(
-            EntryRegister.plan_user_id == plan_user.id
-        )
-        register_result = await session.exec(register_statement)
-        register = register_result.scalars().first()  # 使用 scalars().first()
-        
-        return register is not None
-
 
 async def get_contractors_for_enterprise(engine, enterprise_id: int) -> List[Contractor]:
     """获取与指定企业有合作的承包商列表（保证数据隔离）"""
@@ -364,138 +287,6 @@ async def create_contractor_with_project(engine, request: api.ContractorProjectR
         return contractor, project
 
 
-# Area CRUD 函数
-async def create_area(engine, area: api.Area):
-    """创建厂区"""
-    area_db = Area(
-        enterprise_id=area.enterprise_id,
-        area_name=area.area_name,
-        dept_id=area.dept_id
-    )
-    async with get_session(engine) as session:
-        session.add(area_db)
-        await session.commit()
-        await session.refresh(area_db)
-    return area_db
-
-async def get_area_by_id(engine, area_id: int) -> Area|None:
-    """根据ID获取厂区"""
-    statement = select(Area).where(Area.area_id == area_id)
-    async with get_session(engine) as session:
-        result = await session.exec(statement)
-        area = result.scalars().first()  # 修复：使用 scalars().first()
-        return area
-
-async def get_areas_by_enterprise(engine, enterprise_id: int) -> List[Area]:
-    """获取企业的所有厂区"""
-    statement = select(Area).where(Area.enterprise_id == enterprise_id)
-    async with get_session(engine) as session:
-        result = await session.exec(statement)
-        areas = result.scalars().all()  # 修复：使用 scalars().all()
-        return areas
-
-async def get_areas_by_department(engine, dept_id: int) -> List[Area]:
-    """获取部门的所有厂区"""
-    statement = select(Area).where(Area.dept_id == dept_id)
-    async with get_session(engine) as session:
-        result = await session.exec(statement)
-        areas = result.scalars().all()  # 修复：使用 scalars().all()
-        return areas
-
-async def update_area(engine, area_id: int, area_data: api.Area):
-    """更新厂区信息"""
-    async with get_session(engine) as session:
-        statement = select(Area).where(Area.area_id == area_id)
-        result = await session.exec(statement)
-        area = result.scalars().first()  # 修复：使用 scalars().first()
-        
-        if not area:
-            return None
-            
-        # 更新字段
-        if area_data.area_name is not None:
-            area.area_name = area_data.area_name
-        if area_data.dept_id is not None:
-            area.dept_id = area_data.dept_id
-        if area_data.enterprise_id is not None:
-            area.enterprise_id = area_data.enterprise_id
-            
-        area.updated_at = datetime.now()
-        
-        await session.commit()
-        await session.refresh(area)
-        return area
-
-async def delete_area(engine, area_id: int) -> bool:
-    """删除厂区"""
-    async with get_session(engine) as session:
-        statement = select(Area).where(Area.area_id == area_id)
-        result = await session.exec(statement)
-        area = result.scalars().first()  # 修复：使用 scalars().first()
-        
-        if not area:
-            return False
-            
-        await session.delete(area)
-        await session.commit()
-        return True
-
-async def get_area_list_with_details(engine, enterprise_id: int = None) -> List[api.AreaListItem]:
-    """获取厂区列表，包含企业和部门信息"""
-    if enterprise_id:
-        statement = (
-            select(Area, Company, Department)
-            .join(Company, Area.enterprise_id == Company.company_id)
-            .outerjoin(Department, Area.dept_id == Department.dept_id)
-            .where(Area.enterprise_id == enterprise_id)
-        )
-    else:
-        statement = (
-            select(Area, Company, Department)
-            .join(Company, Area.enterprise_id == Company.company_id)
-            .outerjoin(Department, Area.dept_id == Department.dept_id)
-        )
-    
-    async with get_session(engine) as session:
-        result = await session.exec(statement)
-        area_list = []
-        
-        for row in result.all():
-            area, company, department = row
-            area_item = api.AreaListItem(
-                area_id=area.area_id,
-                area_name=area.area_name,
-                enterprise_name=company.name,
-                dept_name=department.name if department else None
-            )
-            area_list.append(area_item)
-            
-        return area_list
-
-async def get_enterprises(engine) -> List[Company]:
-    """获取所有企业列表"""
-    statement = select(Company).where(Company.type == "enterprise")
-    async with get_session(engine) as session:
-        result = await session.exec(statement)
-        enterprises = result.scalars().all()  # 修复：使用 scalars().all()
-        return enterprises
-
-async def get_departments_by_enterprise(engine, enterprise_id: int) -> List[Department]:
-    """获取指定企业的所有部门"""
-    statement = select(Department).where(Department.company_id == enterprise_id)
-    async with get_session(engine) as session:
-        result = await session.exec(statement)
-        departments = result.scalars().all()  # 修复：使用 scalars().all()
-        return departments
-
-async def get_all_departments(engine) -> List[Department]:
-    """获取所有部门列表"""
-    statement = select(Department)
-    async with get_session(engine) as session:
-        result = await session.exec(statement)
-        departments = result.scalars().all()  # 修复：使用 scalars().all()
-        return departments
-
 async def get_enterprise_user_detail(engine, user_id: int) -> EnterpriseUser|None:
     """获取企业用户详情"""
     statement = select(EnterpriseUser).where(EnterpriseUser.user_id == user_id)
@@ -536,97 +327,6 @@ async def update_enterprise_user(engine, user_id: int, user_data: api.Enterprise
         await session.commit()
         await session.refresh(user)
         return user
-
-async def get_departments_with_member_count(engine, enterprise_id: int = None) -> List[api.DepartmentWithMemberCount]:
-    """获取部门列表及其成员数量"""
-    if enterprise_id:
-        # 企业用户只能看到自己企业的部门
-        dept_statement = select(Department).where(Department.company_id == enterprise_id)
-    else:
-        # 管理员可以看到所有部门
-        dept_statement = select(Department)
-    
-    async with get_session(engine) as session:
-        dept_result = await session.exec(dept_statement)
-        departments = dept_result.scalars().all()  # 使用scalars()确保返回Department对象
-        
-        result = []
-        for dept in departments:
-            # 统计该部门的成员数量
-            member_count_statement = select(func.count()).select_from(EnterpriseUser).where(
-                EnterpriseUser.dept_id == dept.dept_id
-            )
-            member_count_result = await session.exec(member_count_statement)
-            member_count = member_count_result.scalar_one()
-            
-            # 获取企业名称
-            company_statement = select(Company).where(Company.company_id == dept.company_id)
-            company_result = await session.exec(company_statement)
-            company = company_result.scalars().first()
-            
-            result.append(api.DepartmentWithMemberCount(
-                dept_id=dept.dept_id,
-                name=dept.name,
-                company_id=dept.company_id,
-                company_name=company.name if company else "",
-                member_count=member_count,
-                parent_id=dept.parent_id
-            ))
-        
-        return result
-
-async def get_department_members(engine, dept_id: int) -> List[api.EnterpriseUserListItem]:
-    """获取部门成员列表"""
-    statement = select(EnterpriseUser, Company).join(
-        Company, EnterpriseUser.company_id == Company.company_id
-    ).where(EnterpriseUser.dept_id == dept_id)
-    
-    async with get_session(engine) as session:
-        result = await session.exec(statement)
-        members = result.all()
-        
-        return [
-            api.EnterpriseUserListItem(
-                user_id=member[0].user_id,
-                name=member[0].name,
-                phone=member[0].phone,
-                email=member[0].email,
-                position=member[0].position,
-                role_type=member[0].role_type,
-                company_name=member[1].name,
-                dept_id=member[0].dept_id,
-                status=member[0].status
-            )
-            for member in members
-        ]
-
-async def get_enterprise_members(engine, enterprise_id: int, dept_id: int = None) -> List[api.EnterpriseUserListItem]:
-    """获取企业成员列表，可按部门筛选"""
-    statement = select(EnterpriseUser, Company).join(
-        Company, EnterpriseUser.company_id == Company.company_id
-    ).where(EnterpriseUser.company_id == enterprise_id)
-    
-    if dept_id:
-        statement = statement.where(EnterpriseUser.dept_id == dept_id)
-    
-    async with get_session(engine) as session:
-        result = await session.exec(statement)
-        members = result.all()
-        
-        return [
-            api.EnterpriseUserListItem(
-                user_id=member[0].user_id,
-                name=member[0].name,
-                phone=member[0].phone,
-                email=member[0].email,
-                position=member[0].position,
-                role_type=member[0].role_type,
-                company_name=member[1].name,
-                dept_id=member[0].dept_id,
-                status=member[0].status
-            )
-            for member in members
-        ]
 
 if __name__ == "__main__":
     import asyncio

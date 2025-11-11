@@ -16,7 +16,7 @@ from api.model import (
     User,
     UserType
 )
-from db.models import Ticket, EnterpriseUser, ContractorUser, Area
+from db.models import Ticket, EnterpriseUser, ContractorUser
 from routes.dependencies import get_current_user, authenticate_enterprise_level
 
 router = APIRouter()
