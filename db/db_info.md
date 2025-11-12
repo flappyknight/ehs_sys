@@ -17,6 +17,7 @@ CREATE TABLE users (
     user_level INTEGER,
     audit_status INTEGER,
     temp_token VARCHAR(500),
+    relay_name VARCHAR(100),
     sys_only_id BIGINT UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -38,6 +39,7 @@ CREATE TABLE users (
 | user_level | INTEGER | 用户等级 |
 | audit_status | INTEGER | 审核状态 |
 | temp_token | VARCHAR(500) | 临时token存储值 |
+| relay_name | VARCHAR(100) | 用户真实姓名 |
 | sys_only_id | BIGINT | 系统唯一标识ID，用于系统中其他表关联查询 |
 | created_at | TIMESTAMP | 创建时间 |
 | updated_at | TIMESTAMP | 更新时间 |
@@ -61,6 +63,7 @@ CREATE TABLE enterprise_user (
     role_id INTEGER,
     approval_level INTEGER NOT NULL DEFAULT 4,
     status INTEGER NOT NULL DEFAULT 1,
+    relay_name VARCHAR(100),
     sys_only_id BIGINT UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -82,6 +85,7 @@ CREATE TABLE enterprise_user (
 | role_id | INTEGER | 角色ID，用于绑定用户权限 |
 | approval_level | INTEGER | 审批级别，默认4 |
 | status | INTEGER | 状态，默认1 |
+| relay_name | VARCHAR(100) | 用户真实姓名 |
 | sys_only_id | BIGINT | 系统唯一标识ID |
 | created_at | TIMESTAMP | 创建时间 |
 | updated_at | TIMESTAMP | 更新时间 |
@@ -103,6 +107,7 @@ CREATE TABLE contractor_user (
     role_type VARCHAR(10) NOT NULL DEFAULT 'normal',
     personal_photo VARCHAR(255) NOT NULL,
     status INTEGER NOT NULL DEFAULT 0,
+    relay_name VARCHAR(100),
     sys_only_id BIGINT UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -122,6 +127,7 @@ CREATE TABLE contractor_user (
 | role_type | VARCHAR(10) | 角色类型，默认normal |
 | personal_photo | VARCHAR(255) | 个人照片路径 |
 | status | INTEGER | 状态，默认0 |
+| relay_name | VARCHAR(100) | 用户真实姓名 |
 | sys_only_id | BIGINT | 系统唯一标识ID |
 | created_at | TIMESTAMP | 创建时间 |
 | updated_at | TIMESTAMP | 更新时间 |

@@ -23,10 +23,14 @@ CREATE TABLE IF NOT EXISTS users (
     user_level INTEGER,
     audit_status INTEGER,
     temp_token VARCHAR(500),
+    relay_name VARCHAR(100),
     sys_only_id BIGINT UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- user_level: -1 还有没有通过审核， 0 系统最高管理员, 1 企业管理员, 2 企业员工, 3 承包商管理员，4 承包商员工
+-- audit_status: 1 还未提交审核， 2 审核通过， 3 待审核， 4 审核不通过
 
 -- 企业用户表
 CREATE TABLE IF NOT EXISTS enterprise_user (
@@ -41,6 +45,7 @@ CREATE TABLE IF NOT EXISTS enterprise_user (
     role_id INTEGER,
     approval_level INTEGER NOT NULL DEFAULT 4,
     status INTEGER NOT NULL DEFAULT 1,
+    relay_name VARCHAR(100),
     sys_only_id BIGINT UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -57,6 +62,7 @@ CREATE TABLE IF NOT EXISTS contractor_user (
     role_type VARCHAR(10) NOT NULL DEFAULT 'normal',
     personal_photo VARCHAR(255) NOT NULL,
     status INTEGER NOT NULL DEFAULT 0,
+    relay_name VARCHAR(100),
     sys_only_id BIGINT UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -86,6 +92,9 @@ CREATE TABLE IF NOT EXISTS enterprise_info (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_parent_enterprise FOREIGN KEY (parent_enterprise_id) REFERENCES enterprise_info(enterprise_id) ON DELETE SET NULL
 );
+
+-- business_status: 续存，待审核，审核不通过，已注销
+
 
 -- 承包商信息表
 CREATE TABLE IF NOT EXISTS contractor_info (

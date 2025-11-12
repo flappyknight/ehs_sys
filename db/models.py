@@ -19,6 +19,7 @@ class User(SQLModel, table=True):
     user_level: Optional[int] = Field(default=None, nullable=True)
     audit_status: Optional[int] = Field(default=None, nullable=True)
     temp_token: Optional[str] = Field(max_length=500, default=None, nullable=True)
+    relay_name: Optional[str] = Field(max_length=100, default=None, nullable=True)
     sys_only_id: Optional[int] = Field(default=None, unique=True, nullable=True)
 
     created_at: datetime = Field(default_factory=datetime.now)
@@ -100,6 +101,7 @@ class ContractorUser(SQLModel, table=True):
     role_type: str = Field(max_length=10, default="normal", nullable=False)
     personal_photo: str = Field(max_length=255, default=None, nullable=False)
     status: int = Field(default=0, nullable=False)
+    relay_name: Optional[str] = Field(max_length=100, default=None, nullable=True)
     sys_only_id: Optional[int] = Field(default=None, unique=True, nullable=True)
 
     created_at: datetime = Field(default_factory=datetime.now)
@@ -122,6 +124,7 @@ class EnterpriseUser(SQLModel, table=True):
     role_id: Optional[int] = Field(default=None, nullable=True)
     approval_level: int = Field(default=4, nullable=False)
     status: int = Field(default=1, nullable=False)
+    relay_name: Optional[str] = Field(max_length=100, default=None, nullable=True)
     sys_only_id: Optional[int] = Field(default=None, unique=True, nullable=True)
 
     created_at: datetime = Field(default_factory=datetime.now)

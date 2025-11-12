@@ -54,6 +54,7 @@ class User(BaseModel):
     user_level: Optional[int] = None
     audit_status: Optional[int] = None
     temp_token: Optional[str] = None
+    relay_name: Optional[str] = None
     sys_only_id: Optional[int] = None
     enterprise_user: Optional["EnterpriseUser"] = None
     contractor_user: Optional["ContractorUser"] = None
@@ -71,6 +72,7 @@ class EnterpriseUser(BaseModel):
     role_id: Optional[int] = None
     approval_level: ApprovalLevel | int = ApprovalLevel.level_1
     status: int = 1
+    relay_name: Optional[str] = None
     sys_only_id: Optional[int] = None
 
 
@@ -183,6 +185,7 @@ class ContractorUser(BaseModel):
     personal_photo: str
     role_type: str
     status: int
+    relay_name: Optional[str] = None
     sys_only_id: Optional[int] = None
 
 
