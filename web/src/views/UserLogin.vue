@@ -107,11 +107,27 @@ const form = reactive<LoginForm>({
 
 const handleLogin = async () => {
   // 使用 auth store 的 login 方法，而不是直接调用 apiService
-  const success = await authStore.login(form)
+  const tokenResponse = await authStore.login(form)
 
-  if (success) {
-    // 登录成功，跳转到仪表板
-    router.push('/dashboard')
+  if (tokenResponse) {
+    // 登录成功，根据返回的redirect_to进行跳转
+    if (tokenResponse.redirect_to) {
+      // 如果有提示信息，显示提示
+      if (tokenResponse.message) {
+        authStore.error = tokenResponse.message
+        // 如果是重定向到登录页（等待审核），延迟跳转
+        if (tokenResponse.redirect_to === '/login') {
+          setTimeout(() => {
+            router.push('/login')
+          }, 2000)
+          return
+        }
+      }
+      router.push(tokenResponse.redirect_to)
+    } else {
+      // 默认跳转到仪表板
+      router.push('/dashboard')
+    }
   }
   // 错误信息已经在 auth store 中设置，模板会自动显示
 }

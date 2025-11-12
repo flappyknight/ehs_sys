@@ -70,15 +70,9 @@ app.include_router(main_router)
 from routes.dependencies import (
     get_current_user,
     authenticate_enterprise_level,
-    authenticate_contractor_level,
-    get_user_enterprise_id
 )
 
 
-@app.post("/contractor/add/", dependencies=[Depends(authenticate_enterprise_level)])
-async def add_contractor(contractor: Contractor):
-    contractor_db = await crud.create_contractor(app.state.engine, contractor)
-    return contractor_db
 
 
 @app.post("/contractor/add_project", dependencies=[Depends(authenticate_enterprise_level)])

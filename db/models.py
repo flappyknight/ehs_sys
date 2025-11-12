@@ -14,6 +14,12 @@ class User(SQLModel, table=True):
     user_type: str = Field(max_length=20, default=0, nullable=False)  # enterprise, contractor, admin
     enterprise_staff_id: Optional[int] = Field(default=None, foreign_key="enterprise_user.user_id", nullable=True)
     contractor_staff_id: Optional[int] = Field(default=None, foreign_key="contractor_user.user_id", nullable=True)
+    phone: Optional[str] = Field(max_length=20, default=None, nullable=True)
+    email: Optional[str] = Field(max_length=100, default=None, nullable=True)
+    user_level: Optional[int] = Field(default=None, nullable=True)
+    audit_status: Optional[int] = Field(default=None, nullable=True)
+    temp_token: Optional[str] = Field(max_length=500, default=None, nullable=True)
+    sys_only_id: Optional[int] = Field(default=None, unique=True, nullable=True)
 
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
@@ -66,30 +72,16 @@ class ContractorInfo(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.now)
 
 
-class Contractor(SQLModel, table=True):
-    """承包商表（旧表，保持向后兼容）"""
-    __tablename__ = 'contractor'
-    contractor_id: int = Field(default=None, primary_key=True)
-    license_file: str = Field(max_length=255, default=None, nullable=False)
-    company_name: str = Field(max_length=255, default=None, nullable=False)
-    company_type: Optional[str] = Field(max_length=100, default=None, nullable=True)
-    legal_person: Optional[str] = Field(max_length=100, default=None, nullable=True)
-    establish_date: Optional[date] = Field(default=None, nullable=True)
-    registered_capital: Optional[float] = Field(default=None, nullable=True)
-    applicant_name: Optional[str] = Field(max_length=100, default=None, nullable=True)
-
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
 
 
 class ContractorProject(SQLModel, table=True):
     """承包商项目表"""
     __tablename__ = 'contractor_project'
     project_id: int = Field(default=None, primary_key=True)
-    contractor_id: int = Field(default=None, foreign_key="contractor.contractor_id", nullable=False)
+    contractor_id: int = Field(default=None, nullable=False)
     enterprise_id: int = Field(default=None, nullable=False)
     project_name: str = Field(max_length=255, default=None, nullable=False)
-    leader_name: str = Field(max_length=100, default=None, nullable=False)
+    leader_name_str: str = Field(max_length=100, default=None, nullable=False)
     leader_phone: str = Field(max_length=20, default=None, nullable=False)
 
     created_at: datetime = Field(default_factory=datetime.now)
@@ -100,14 +92,15 @@ class ContractorUser(SQLModel, table=True):
     """承包商用户表"""
     __tablename__ = 'contractor_user'
     user_id: int = Field(default=None, primary_key=True)
-    contractor_id: int = Field(default=None, foreign_key="contractor.contractor_id", nullable=False)
-    name: str = Field(max_length=100, default=None, nullable=False)
+    contractor_id: int = Field(default=None, nullable=False)
+    name_str: str = Field(max_length=100, default=None, nullable=False)
     phone: str = Field(max_length=20, default=None, nullable=False)
     id_number: str = Field(max_length=50, default=None, nullable=False)
     work_type: str = Field(max_length=100, default=None, nullable=False)
     role_type: str = Field(max_length=10, default="normal", nullable=False)
     personal_photo: str = Field(max_length=255, default=None, nullable=False)
-    status: bool = Field(default=False, nullable=False)
+    status: int = Field(default=0, nullable=False)
+    sys_only_id: Optional[int] = Field(default=None, unique=True, nullable=True)
 
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
@@ -121,13 +114,15 @@ class EnterpriseUser(SQLModel, table=True):
     user_id: int = Field(default=None, primary_key=True)
     company_id: int = Field(default=None, nullable=False)
     dept_id: Optional[int] = Field(default=None, nullable=True)
-    name: str = Field(max_length=100, default=None, nullable=False)
+    name_str: str = Field(max_length=100, default=None, nullable=False)
     phone: str = Field(max_length=20, default=None, nullable=False)
     email: str = Field(max_length=100, default=None, nullable=False)
     position: Optional[str] = Field(max_length=100, default=None, nullable=True)
     role_type: str = Field(max_length=100, default=None, nullable=False)
+    role_id: Optional[int] = Field(default=None, nullable=True)
     approval_level: int = Field(default=4, nullable=False)
-    status: bool = Field(default=True, nullable=False)
+    status: int = Field(default=1, nullable=False)
+    sys_only_id: Optional[int] = Field(default=None, unique=True, nullable=True)
 
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)

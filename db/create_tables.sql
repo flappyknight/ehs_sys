@@ -18,6 +18,12 @@ CREATE TABLE IF NOT EXISTS users (
     user_type VARCHAR(20) NOT NULL CHECK (user_type IN ('enterprise', 'contractor', 'admin')),
     enterprise_staff_id INTEGER,
     contractor_staff_id INTEGER,
+    phone VARCHAR(20),
+    email VARCHAR(100),
+    user_level INTEGER,
+    audit_status INTEGER,
+    temp_token VARCHAR(500),
+    sys_only_id BIGINT UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -27,13 +33,15 @@ CREATE TABLE IF NOT EXISTS enterprise_user (
     user_id SERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL,
     dept_id INTEGER,
-    name VARCHAR(100) NOT NULL,
+    name_str VARCHAR(100) NOT NULL,
     phone VARCHAR(20) NOT NULL,
     email VARCHAR(100) NOT NULL,
     position VARCHAR(100),
     role_type VARCHAR(100) NOT NULL,
+    role_id INTEGER,
     approval_level INTEGER NOT NULL DEFAULT 4,
-    status BOOLEAN NOT NULL DEFAULT true,
+    status INTEGER NOT NULL DEFAULT 1,
+    sys_only_id BIGINT UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -42,16 +50,16 @@ CREATE TABLE IF NOT EXISTS enterprise_user (
 CREATE TABLE IF NOT EXISTS contractor_user (
     user_id SERIAL PRIMARY KEY,
     contractor_id INTEGER NOT NULL,
-    name VARCHAR(100) NOT NULL,
+    name_str VARCHAR(100) NOT NULL,
     phone VARCHAR(20) NOT NULL,
     id_number VARCHAR(50) NOT NULL,
     work_type VARCHAR(100) NOT NULL,
     role_type VARCHAR(10) NOT NULL DEFAULT 'normal',
     personal_photo VARCHAR(255) NOT NULL,
-    status BOOLEAN NOT NULL DEFAULT false,
+    status INTEGER NOT NULL DEFAULT 0,
+    sys_only_id BIGINT UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_contractor FOREIGN KEY (contractor_id) REFERENCES contractor(contractor_id) ON DELETE CASCADE
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ============================================
@@ -99,19 +107,6 @@ CREATE TABLE IF NOT EXISTS contractor_info (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- 承包商表（旧表，保持兼容）
-CREATE TABLE IF NOT EXISTS contractor (
-    contractor_id SERIAL PRIMARY KEY,
-    license_file VARCHAR(255) NOT NULL,
-    company_name VARCHAR(255) NOT NULL,
-    company_type VARCHAR(100),
-    legal_person VARCHAR(100),
-    establish_date DATE,
-    registered_capital NUMERIC(15, 2),
-    applicant_name VARCHAR(100),
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
 
 -- ============================================
 -- 项目相关表
@@ -123,11 +118,10 @@ CREATE TABLE IF NOT EXISTS contractor_project (
     contractor_id INTEGER NOT NULL,
     enterprise_id INTEGER NOT NULL,
     project_name VARCHAR(255) NOT NULL,
-    leader_name VARCHAR(100) NOT NULL,
+    leader_name_str VARCHAR(100) NOT NULL,
     leader_phone VARCHAR(20) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_project_contractor FOREIGN KEY (contractor_id) REFERENCES contractor(contractor_id) ON DELETE CASCADE
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ============================================
@@ -192,8 +186,6 @@ CREATE INDEX IF NOT EXISTS idx_contractor_info_is_deleted ON contractor_info(is_
 CREATE INDEX IF NOT EXISTS idx_contractor_info_active_enterprise_ids ON contractor_info USING GIN(active_enterprise_ids);
 CREATE INDEX IF NOT EXISTS idx_contractor_info_inactive_enterprise_ids ON contractor_info USING GIN(inactive_enterprise_ids);
 
--- 承包商表索引
-CREATE INDEX IF NOT EXISTS idx_contractor_company_name ON contractor(company_name);
 
 -- 项目表索引
 CREATE INDEX IF NOT EXISTS idx_contractor_project_contractor_id ON contractor_project(contractor_id);
@@ -245,7 +237,6 @@ COMMENT ON TABLE enterprise_user IS '企业用户表 - 存储企业员工详细�
 COMMENT ON TABLE contractor_user IS '承包商用户表 - 存储承包商员工详细信息';
 COMMENT ON TABLE enterprise_info IS '企业信息表 - 存储企业基本信息、组织关系及合作承包商信息';
 COMMENT ON TABLE contractor_info IS '承包商信息表 - 存储承包商基本信息、合作状态及合作企业详情';
-COMMENT ON TABLE contractor IS '承包商表（旧表，保持向后兼容）';
 COMMENT ON TABLE contractor_project IS '承包商项目表';
 COMMENT ON TABLE ticket IS '作业票表';
 

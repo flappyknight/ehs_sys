@@ -7,6 +7,8 @@ from enum import Enum, IntEnum
 class Token(BaseModel):
     access_token: str
     token_type: str
+    redirect_to: Optional[str] = None  # 前端重定向路径
+    message: Optional[str] = None  # 提示信息
 
 
 class UserType(str, Enum):
@@ -19,14 +21,9 @@ class RegisterRequest(BaseModel):
     username: str
     password: str
     userType: str  # 'enterprise', 'contractor', or 'admin'
-    name: str
     phone: str
-    email: Optional[str] = None
-    companyName: Optional[str] = None
-    position: Optional[str] = None
-    contractorCompanyName: Optional[str] = None
-    adminCode: Optional[str] = None
-    department: Optional[str] = None
+    email: str
+    temp_token: str  # 前端生成的临时token
 
 
 class PermissionLevel(IntEnum):
@@ -52,6 +49,12 @@ class User(BaseModel):
     password_hash: Optional[str] = None
     enterprise_staff_id: Optional[int] = None
     contractor_staff_id: Optional[int] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    user_level: Optional[int] = None
+    audit_status: Optional[int] = None
+    temp_token: Optional[str] = None
+    sys_only_id: Optional[int] = None
     enterprise_user: Optional["EnterpriseUser"] = None
     contractor_user: Optional["ContractorUser"] = None
 
@@ -65,8 +68,10 @@ class EnterpriseUser(BaseModel):
     email: Optional[str] = None
     position: Optional[str] = None
     role_type: str = "normal"
+    role_id: Optional[int] = None
     approval_level: ApprovalLevel | int = ApprovalLevel.level_1
-    status: bool = True
+    status: int = 1
+    sys_only_id: Optional[int] = None
 
 
 class EnterpriseInfo(BaseModel):
@@ -157,16 +162,6 @@ class ContractorInfoUpdate(BaseModel):
     business_status: Optional[str] = None
 
 
-class Contractor(BaseModel):
-    """承包商模型（旧表兼容）"""
-    contractor_id: Optional[int] = None
-    company_name: str
-    license_file: str
-    company_type: str
-    legal_person: str
-    establish_date: str
-    registered_capital: int
-    applicant_name: str
 
 
 class Project(BaseModel):
@@ -187,7 +182,8 @@ class ContractorUser(BaseModel):
     work_type: str
     personal_photo: str
     role_type: str
-    status: bool
+    status: int
+    sys_only_id: Optional[int] = None
 
 
 class ContractorListItem(BaseModel):
@@ -231,7 +227,7 @@ class EnterpriseUserListItem(BaseModel):
     role_type: str
     company_name: str
     dept_id: Optional[int] = None
-    status: bool
+    status: int
 
 
 class EnterpriseUserUpdate(BaseModel):
@@ -242,7 +238,7 @@ class EnterpriseUserUpdate(BaseModel):
     position: Optional[str] = None
     dept_id: Optional[int] = None
     role_type: Optional[str] = None
-    status: Optional[bool] = None
+    status: Optional[int] = None
 
 
 # ===== 工单管理相关模型 =====
@@ -360,7 +356,7 @@ class UserUpdate(BaseModel):
     position: Optional[str] = None
     role_type: Optional[str] = None
     department_id: Optional[int] = None
-    status: Optional[bool] = None
+    status: Optional[int] = None
     password: Optional[str] = None
 
 
@@ -373,7 +369,7 @@ class UserListItem(BaseModel):
     phone: str
     email: Optional[str] = None
     role_type: str
-    status: bool
+    status: int
     company_name: Optional[str] = None
     department_name: Optional[str] = None
     created_at: str
@@ -389,7 +385,7 @@ class UserDetail(BaseModel):
     email: Optional[str] = None
     position: Optional[str] = None
     role_type: str
-    status: bool
+    status: int
     company_id: Optional[int] = None
     company_name: Optional[str] = None
     department_id: Optional[int] = None

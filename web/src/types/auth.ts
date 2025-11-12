@@ -9,28 +9,24 @@ export interface RegisterForm {
   password: string
   confirmPassword: string
   userType: 'enterprise' | 'contractor' | 'admin'
-  name: string
   phone: string
-  email?: string
-  // 企业用户特有字段
-  companyName?: string
-  position?: string
-  // 承包商用户特有字段
-  contractorCompanyName?: string
-  // 系统管理员特有字段
-  adminCode?: string
-  department?: string
+  email: string
+  temp_token?: string  // 前端生成的临时token
 }
 
 export interface Token {
   access_token: string
   token_type: string
+  redirect_to?: string
+  message?: string
 }
 
 export interface User {
-  id: number
+  user_id: number
   username: string
   user_type: 'admin' | 'enterprise' | 'contractor'
+  user_level?: number
+  audit_status?: number
   enterprise_user?: EnterpriseUser
   contractor_user?: ContractorUser
 }

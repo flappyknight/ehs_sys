@@ -6,6 +6,9 @@ import ForgotPassword from '@/views/ForgotPassword.vue'
 import SettlementChoice from '@/views/SettlementChoice.vue'
 import EnterpriseSettlement from '@/views/EnterpriseSettlement.vue'
 import ContractorSettlement from '@/views/ContractorSettlement.vue'
+import AdminPermissionApply from '@/views/AdminPermissionApply.vue'
+import EnterpriseBind from '@/views/EnterpriseBind.vue'
+import ContractorBind from '@/views/ContractorBind.vue'
 import Dashboard from '@/views/UserDashboard.vue'
 import ProjectList from '@/views/ProjectList.vue'
 import ProjectDetail from '@/views/ProjectDetail.vue'
@@ -53,6 +56,24 @@ const router = createRouter({
       name: 'ContractorSettlement',
       component: ContractorSettlement
       // 入驻申请页面允许任何人访问
+    },
+    {
+      path: '/admin/permission-apply',
+      name: 'AdminPermissionApply',
+      component: AdminPermissionApply,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/enterprise/bind',
+      name: 'EnterpriseBind',
+      component: EnterpriseBind,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/contractor/bind',
+      name: 'ContractorBind',
+      component: ContractorBind,
+      meta: { requiresAuth: true }
     },
     {
       path: '/',
@@ -103,26 +124,117 @@ const router = createRouter({
   ]
 })
 
+// 权限检查函数：根据用户状态返回应该重定向的路径
+// 返回null表示允许访问，返回路径字符串表示需要重定向
+function checkUserPermission(user: any): string | null {
+  if (!user) return '/login'
+
+  const userType = user.user_type
+  const userLevel = user.user_level ?? -1
+  const auditStatus = user.audit_status ?? 1
+
+  if (userType === 'admin') {
+    // 管理员：先检查user_level
+    if (userLevel === -1 || auditStatus === 1) {
+      // 还没有通过审批或还未提交审核，需要申请权限
+      return '/admin/permission-apply'
+    } else if (auditStatus === 3) {
+      // 待审核状态，不允许访问主页面
+      return '/login'
+    } else if (auditStatus === 2) {
+      // 审核通过，允许访问
+      return null
+    }
+  } else if (userType === 'enterprise') {
+    // 企业用户：检查audit_status
+    if (auditStatus === 1) {
+      // 还没有绑定企业，需要绑定
+      return '/enterprise/bind'
+    } else if (auditStatus === 3) {
+      // 待审核状态，不允许访问主页面
+      return '/login'
+    } else if (auditStatus === 2) {
+      // 审核通过，允许访问
+      return null
+    }
+  } else if (userType === 'contractor') {
+    // 承包商用户：检查audit_status
+    if (auditStatus === 1) {
+      // 还没有绑定供应商，需要绑定
+      return '/contractor/bind'
+    } else if (auditStatus === 3) {
+      // 待审核状态，不允许访问主页面
+      return '/login'
+    } else if (auditStatus === 2) {
+      // 审核通过，允许访问
+      return null
+    }
+  }
+
+  // 默认不允许访问（未知状态）
+  return '/login'
+}
+
 // 路由守卫
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
 
-  // 只有在需要认证的页面才检查用户状态
-  if (to.meta.requiresAuth || to.meta.requiresGuest) {
+  // 对于需要认证的页面
+  if (to.meta.requiresAuth) {
     // 检查用户认证状态
     if (!authStore.isAuthenticated) {
       await authStore.checkAuth()
     }
 
-    if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    if (!authStore.isAuthenticated) {
       next('/login')
-    } else if (to.meta.requiresGuest && authStore.isAuthenticated) {
+      return
+    }
+
+    // 检查用户权限状态
+    const redirectPath = checkUserPermission(authStore.user)
+    
+    // 如果当前页面是信息填报页面，允许访问（即使状态不符合）
+    const isInfoPage = [
+      '/admin/permission-apply',
+      '/enterprise/bind',
+      '/contractor/bind'
+    ].includes(to.path)
+
+    if (redirectPath && !isInfoPage) {
+      // 用户状态不符合要求，且不是信息填报页面，重定向
+      next(redirectPath)
+      return
+    }
+
+    // 如果当前页面是信息填报页面，但用户状态已经通过审核，重定向到主页面
+    if (isInfoPage && redirectPath === null) {
       next('/dashboard')
+      return
+    }
+
+    // 允许访问
+    next()
+  } 
+  // 对于访客页面（登录、注册等）
+  else if (to.meta.requiresGuest) {
+    // 只有在已经有用户信息的情况下才检查
+    if (authStore.isAuthenticated) {
+      // 检查用户权限，如果已通过审核，跳转到主页面
+      const redirectPath = checkUserPermission(authStore.user)
+      if (redirectPath === null) {
+        next('/dashboard')
+      } else {
+        // 如果用户状态不符合要求，跳转到相应的页面
+        next(redirectPath)
+      }
     } else {
+      // 如果没有用户信息，直接放行，不调用checkAuth
       next()
     }
-  } else {
-    // 对于不需要认证的页面，直接放行
+  } 
+  // 对于不需要认证的页面，直接放行
+  else {
     next()
   }
 })

@@ -21,6 +21,10 @@ def convert_user_db_to_response(user_db: db_models.User) -> User:
         username=user_db.username,
         enterprise_staff_id=user_db.enterprise_staff_id if user_db.enterprise_staff_id is not None else None,
         contractor_staff_id=user_db.contractor_staff_id if user_db.contractor_staff_id is not None else None,
+        phone=user_db.phone,
+        email=user_db.email,
+        user_level=user_db.user_level,
+        audit_status=user_db.audit_status,
         enterprise_user=enterprise_user,
         contractor_user=contractor_user
     )
@@ -52,20 +56,3 @@ def convert_contractor_user_to_response(user_db: db_models.ContractorUser) -> Co
         role_type=user_db.role_type,
         status=user_db.status
     )
-
-
-async def convert_contractors_to_list_response(engine, contractors: List[db_models.Contractor], enterprise_id: int) -> List[ContractorListItem]:
-    """将承包商数据库对象转换为API响应格式"""
-    result = []
-    for contractor in contractors:
-        project_count = await crud.get_contractor_project_count(engine, contractor.contractor_id, enterprise_id)
-        contractor_item = ContractorListItem(
-            contractor_id=contractor.contractor_id,
-            company_name=contractor.company_name,
-            company_type=contractor.company_type,
-            legal_person=contractor.legal_person,
-            establish_date=str(contractor.establish_date),
-            project_count=project_count
-        )
-        result.append(contractor_item)
-    return result

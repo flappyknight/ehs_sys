@@ -1,72 +1,136 @@
-# EHS系统数据库表结构文档
+# EHS系统数据库表结构说明
 
-## 目录
+## 1. users - 用户表
 
-1. [企业信息表 (enterprise_info)](#1-企业信息表-enterprise_info)
-2. [承包商信息表 (contractor_info)](#2-承包商信息表-contractor_info)
-3. [用户表 (users)](#3-用户表-users)
-4. [公司表 (company)](#4-公司表-company)
-5. [企业用户表 (enterprise_user)](#5-企业用户表-enterprise_user)
-6. [承包商用户表 (contractor_user)](#6-承包商用户表-contractor_user)
-7. [部门表 (department)](#7-部门表-department)
-8. [承包商项目表 (contractor_project)](#8-承包商项目表-contractor_project)
-9. [进场计划表 (entry_plan)](#9-进场计划表-entry_plan)
-10. [进场计划人员表 (entry_plan_user)](#10-进场计划人员表-entry_plan_user)
-11. [进场登记表 (entry_register)](#11-进场登记表-entry_register)
-12. [区域表 (area)](#12-区域表-area)
-13. [作业票表 (ticket)](#13-作业票表-ticket)
-14. [作业设备表 (work_equipment)](#14-作业设备表-work_equipment)
-15. [受限空间表 (confined_space)](#15-受限空间表-confined_space)
-16. [临时用电表 (temporary_power)](#16-临时用电表-temporary_power)
-17. [交叉作业表 (cross_work)](#17-交叉作业表-cross_work)
-
----
-
-## 数据库重建说明
-
-由于企业信息表和承包商信息表结构发生重大变更，需要先删除旧表再创建新表。
-
-### 删除旧表SQL语句
+存储所有用户的登录凭证
 
 ```sql
--- 删除旧的承包商表（已废弃）
-DROP TABLE IF EXISTS contractor CASCADE;
-
--- 如果之前存在旧版本的企业信息表和承包商信息表，也需要删除
--- DROP TABLE IF EXISTS enterprise_info CASCADE;
--- DROP TABLE IF EXISTS contractor_info CASCADE;
+CREATE TABLE users (
+    user_id SERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    user_type VARCHAR(20) NOT NULL CHECK (user_type IN ('enterprise', 'contractor', 'admin')),
+    enterprise_staff_id INTEGER,
+    contractor_staff_id INTEGER,
+    phone VARCHAR(20),
+    email VARCHAR(100),
+    user_level INTEGER,
+    audit_status INTEGER,
+    temp_token VARCHAR(500),
+    sys_only_id BIGINT UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 ```
-
----
-
-## 1. 企业信息表 (enterprise_info)
-
-### 表说明
-
-存储企业的基本信息、组织关系及合作承包商信息。支持企业层级关系（母公司-子公司）和承包商白名单管理。
 
 ### 字段说明
 
-| 字段名 | 数据类型 | 约束 | 默认值 | 说明 |
-|--------|---------|------|--------|------|
-| enterprise_id | INTEGER | PRIMARY KEY | AUTO | 企业唯一标识（主键） |
-| license_file | VARCHAR(255) | NOT NULL | - | 营业执照文件路径 |
-| company_name | VARCHAR(255) | NOT NULL | - | 企业名称 |
-| company_type | VARCHAR(100) | NULL | - | 企业类型（如：有限责任公司、股份有限公司等） |
-| legal_person | VARCHAR(100) | NULL | - | 法定代表人姓名 |
-| establish_date | DATE | NULL | - | 成立日期 |
-| registered_capital | NUMERIC | NULL | - | 注册资本（单位：万元） |
-| applicant_name | VARCHAR(100) | NULL | - | 申请人姓名 |
-| business_status | VARCHAR(50) | NOT NULL | '续存' | 营业状态（续存/注销/吊销等） |
-| is_deleted | BOOLEAN | NOT NULL | false | 是否已删除（软删除标记） |
-| parent_enterprise_id | INTEGER | NULL | - | 上级公司ID（母公司ID，NULL表示顶级公司） |
-| subsidiary_ids | JSONB | NOT NULL | [] | 下级公司ID列表（子公司ID数组） |
-| allowed_contractor_ids | JSONB | NOT NULL | [] | 允许合作的承包商ID列表（白名单） |
-| modification_log | JSONB | NOT NULL | [] | 修改记录日志（记录所有变更历史） |
-| created_at | TIMESTAMP | NOT NULL | NOW() | 创建时间 |
-| updated_at | TIMESTAMP | NOT NULL | NOW() | 最后修改时间 |
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| user_id | SERIAL | 用户ID，主键 |
+| username | VARCHAR(50) | 用户名，唯一 |
+| password_hash | VARCHAR(255) | 密码哈希值 |
+| user_type | VARCHAR(20) | 用户类型：enterprise/contractor/admin |
+| enterprise_staff_id | INTEGER | 关联企业员工ID |
+| contractor_staff_id | INTEGER | 关联承包商员工ID |
+| phone | VARCHAR(20) | 用户电话 |
+| email | VARCHAR(100) | 用户邮箱 |
+| user_level | INTEGER | 用户等级 |
+| audit_status | INTEGER | 审核状态 |
+| temp_token | VARCHAR(500) | 临时token存储值 |
+| sys_only_id | BIGINT | 系统唯一标识ID，用于系统中其他表关联查询 |
+| created_at | TIMESTAMP | 创建时间 |
+| updated_at | TIMESTAMP | 更新时间 |
 
-### 创建表SQL语句
+---
+
+## 2. enterprise_user - 企业用户表
+
+存储企业员工详细信息
+
+```sql
+CREATE TABLE enterprise_user (
+    user_id SERIAL PRIMARY KEY,
+    company_id INTEGER NOT NULL,
+    dept_id INTEGER,
+    name_str VARCHAR(100) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    email VARCHAR(100) NOT NULL,
+    position VARCHAR(100),
+    role_type VARCHAR(100) NOT NULL,
+    role_id INTEGER,
+    approval_level INTEGER NOT NULL DEFAULT 4,
+    status INTEGER NOT NULL DEFAULT 1,
+    sys_only_id BIGINT UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### 字段说明
+
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| user_id | SERIAL | 员工ID，主键 |
+| company_id | INTEGER | 所属公司ID |
+| dept_id | INTEGER | 部门ID |
+| name_str | VARCHAR(100) | 姓名 |
+| phone | VARCHAR(20) | 电话 |
+| email | VARCHAR(100) | 邮箱 |
+| position | VARCHAR(100) | 职位 |
+| role_type | VARCHAR(100) | 角色类型 |
+| role_id | INTEGER | 角色ID，用于绑定用户权限 |
+| approval_level | INTEGER | 审批级别，默认4 |
+| status | INTEGER | 状态，默认1 |
+| sys_only_id | BIGINT | 系统唯一标识ID |
+| created_at | TIMESTAMP | 创建时间 |
+| updated_at | TIMESTAMP | 更新时间 |
+
+---
+
+## 3. contractor_user - 承包商用户表
+
+存储承包商员工详细信息
+
+```sql
+CREATE TABLE contractor_user (
+    user_id SERIAL PRIMARY KEY,
+    contractor_id INTEGER NOT NULL,
+    name_str VARCHAR(100) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    id_number VARCHAR(50) NOT NULL,
+    work_type VARCHAR(100) NOT NULL,
+    role_type VARCHAR(10) NOT NULL DEFAULT 'normal',
+    personal_photo VARCHAR(255) NOT NULL,
+    status INTEGER NOT NULL DEFAULT 0,
+    sys_only_id BIGINT UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### 字段说明
+
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| user_id | SERIAL | 员工ID，主键 |
+| contractor_id | INTEGER | 所属承包商ID |
+| name_str | VARCHAR(100) | 姓名 |
+| phone | VARCHAR(20) | 电话 |
+| id_number | VARCHAR(50) | 身份证号 |
+| work_type | VARCHAR(100) | 工种 |
+| role_type | VARCHAR(10) | 角色类型，默认normal |
+| personal_photo | VARCHAR(255) | 个人照片路径 |
+| status | INTEGER | 状态，默认0 |
+| sys_only_id | BIGINT | 系统唯一标识ID |
+| created_at | TIMESTAMP | 创建时间 |
+| updated_at | TIMESTAMP | 更新时间 |
+
+---
+
+## 4. enterprise_info - 企业信息表
+
+存储企业基本信息、组织关系及合作承包商信息
 
 ```sql
 CREATE TABLE enterprise_info (
@@ -85,131 +149,36 @@ CREATE TABLE enterprise_info (
     allowed_contractor_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
     modification_log JSONB NOT NULL DEFAULT '[]'::jsonb,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_parent_enterprise FOREIGN KEY (parent_enterprise_id) 
-        REFERENCES enterprise_info(enterprise_id) ON DELETE SET NULL
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
--- 创建索引
-CREATE INDEX idx_enterprise_company_name ON enterprise_info(company_name);
-CREATE INDEX idx_enterprise_business_status ON enterprise_info(business_status);
-CREATE INDEX idx_enterprise_is_deleted ON enterprise_info(is_deleted);
-CREATE INDEX idx_enterprise_parent_id ON enterprise_info(parent_enterprise_id);
-CREATE INDEX idx_enterprise_subsidiary_ids ON enterprise_info USING GIN(subsidiary_ids);
-CREATE INDEX idx_enterprise_allowed_contractor_ids ON enterprise_info USING GIN(allowed_contractor_ids);
-
--- 创建更新时间触发器
-CREATE OR REPLACE FUNCTION update_enterprise_info_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trigger_update_enterprise_info_updated_at
-    BEFORE UPDATE ON enterprise_info
-    FOR EACH ROW
-    EXECUTE FUNCTION update_enterprise_info_updated_at();
-
--- 添加表注释
-COMMENT ON TABLE enterprise_info IS '企业信息表 - 存储企业基本信息、组织关系及合作承包商信息';
-COMMENT ON COLUMN enterprise_info.enterprise_id IS '企业唯一标识';
-COMMENT ON COLUMN enterprise_info.license_file IS '营业执照文件路径';
-COMMENT ON COLUMN enterprise_info.company_name IS '企业名称';
-COMMENT ON COLUMN enterprise_info.company_type IS '企业类型';
-COMMENT ON COLUMN enterprise_info.legal_person IS '法定代表人';
-COMMENT ON COLUMN enterprise_info.establish_date IS '成立日期';
-COMMENT ON COLUMN enterprise_info.registered_capital IS '注册资本（万元）';
-COMMENT ON COLUMN enterprise_info.applicant_name IS '申请人姓名';
-COMMENT ON COLUMN enterprise_info.business_status IS '营业状态（续存/注销/吊销等）';
-COMMENT ON COLUMN enterprise_info.is_deleted IS '是否已删除（软删除标记）';
-COMMENT ON COLUMN enterprise_info.parent_enterprise_id IS '上级公司ID（母公司）';
-COMMENT ON COLUMN enterprise_info.subsidiary_ids IS '下级公司ID列表（子公司数组）';
-COMMENT ON COLUMN enterprise_info.allowed_contractor_ids IS '允许合作的承包商ID列表';
-COMMENT ON COLUMN enterprise_info.modification_log IS '修改记录日志';
-COMMENT ON COLUMN enterprise_info.created_at IS '创建时间';
-COMMENT ON COLUMN enterprise_info.updated_at IS '最后修改时间';
 ```
-
-### JSONB字段结构说明
-
-#### subsidiary_ids 字段结构
-
-```json
-[
-    123,
-    456,
-    789
-]
-```
-
-#### allowed_contractor_ids 字段结构
-
-```json
-[
-    10,
-    20,
-    30
-]
-```
-
-#### modification_log 字段结构
-
-```json
-[
-    {
-        "timestamp": "2025-11-11T10:30:00",
-        "operator_id": 1,
-        "operator_name": "张三",
-        "operation": "update",
-        "field": "company_name",
-        "old_value": "旧公司名称",
-        "new_value": "新公司名称",
-        "reason": "公司更名"
-    },
-    {
-        "timestamp": "2025-11-10T15:20:00",
-        "operator_id": 2,
-        "operator_name": "李四",
-        "operation": "add_contractor",
-        "contractor_id": 10,
-        "contractor_name": "XX承包商",
-        "reason": "新增合作承包商"
-    }
-]
-```
-
----
-
-## 2. 承包商信息表 (contractor_info)
-
-### 表说明
-
-存储承包商的基本信息、合作状态及合作企业详情。支持承包商与多个企业的合作关系管理。
 
 ### 字段说明
 
-| 字段名 | 数据类型 | 约束 | 默认值 | 说明 |
-|--------|---------|------|--------|------|
-| contractor_id | INTEGER | PRIMARY KEY | AUTO | 承包商唯一标识（主键） |
-| license_file | VARCHAR(255) | NOT NULL | - | 营业执照文件路径 |
-| company_name | VARCHAR(255) | NOT NULL | - | 承包商公司名称 |
-| company_type | VARCHAR(100) | NULL | - | 公司类型 |
-| legal_person | VARCHAR(100) | NULL | - | 法定代表人姓名 |
-| establish_date | DATE | NULL | - | 成立日期 |
-| registered_capital | NUMERIC | NULL | - | 注册资本（单位：万元） |
-| applicant_name | VARCHAR(100) | NULL | - | 申请人姓名 |
-| business_status | VARCHAR(50) | NOT NULL | '续存' | 营业状态（续存/注销/吊销等） |
-| is_deleted | BOOLEAN | NOT NULL | false | 是否已删除（软删除标记） |
-| active_enterprise_ids | JSONB | NOT NULL | [] | 合作状态企业ID列表（当前正在合作的企业） |
-| inactive_enterprise_ids | JSONB | NOT NULL | [] | 已失效合作企业ID列表（曾经合作但已终止） |
-| cooperation_detail_log | JSONB | NOT NULL | [] | 合作企业详情日志（记录合作历史） |
-| modification_log | JSONB | NOT NULL | [] | 修改记录日志（记录所有变更历史） |
-| created_at | TIMESTAMP | NOT NULL | NOW() | 创建时间 |
-| updated_at | TIMESTAMP | NOT NULL | NOW() | 最后修改时间 |
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| enterprise_id | SERIAL | 企业ID，主键 |
+| license_file | VARCHAR(255) | 营业执照文件路径 |
+| company_name | VARCHAR(255) | 公司名称 |
+| company_type | VARCHAR(100) | 公司类型 |
+| legal_person | VARCHAR(100) | 法人 |
+| establish_date | DATE | 成立日期 |
+| registered_capital | NUMERIC(15, 2) | 注册资本 |
+| applicant_name | VARCHAR(100) | 申请人姓名 |
+| business_status | VARCHAR(50) | 经营状态，默认"续存" |
+| is_deleted | BOOLEAN | 是否删除，默认false |
+| parent_enterprise_id | INTEGER | 父企业ID |
+| subsidiary_ids | JSONB | 子公司ID数组 |
+| allowed_contractor_ids | JSONB | 允许合作的承包商ID数组 |
+| modification_log | JSONB | 修改日志 |
+| created_at | TIMESTAMP | 创建时间 |
+| updated_at | TIMESTAMP | 更新时间 |
 
-### 创建表SQL语句
+---
+
+## 5. contractor_info - 承包商信息表
+
+存储承包商基本信息、合作状态及合作企业详情
 
 ```sql
 CREATE TABLE contractor_info (
@@ -230,335 +199,34 @@ CREATE TABLE contractor_info (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
--- 创建索引
-CREATE INDEX idx_contractor_company_name ON contractor_info(company_name);
-CREATE INDEX idx_contractor_business_status ON contractor_info(business_status);
-CREATE INDEX idx_contractor_is_deleted ON contractor_info(is_deleted);
-CREATE INDEX idx_contractor_active_enterprise_ids ON contractor_info USING GIN(active_enterprise_ids);
-CREATE INDEX idx_contractor_inactive_enterprise_ids ON contractor_info USING GIN(inactive_enterprise_ids);
-
--- 创建更新时间触发器
-CREATE OR REPLACE FUNCTION update_contractor_info_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trigger_update_contractor_info_updated_at
-    BEFORE UPDATE ON contractor_info
-    FOR EACH ROW
-    EXECUTE FUNCTION update_contractor_info_updated_at();
-
--- 添加表注释
-COMMENT ON TABLE contractor_info IS '承包商信息表 - 存储承包商基本信息、合作状态及合作企业详情';
-COMMENT ON COLUMN contractor_info.contractor_id IS '承包商唯一标识';
-COMMENT ON COLUMN contractor_info.license_file IS '营业执照文件路径';
-COMMENT ON COLUMN contractor_info.company_name IS '承包商公司名称';
-COMMENT ON COLUMN contractor_info.company_type IS '公司类型';
-COMMENT ON COLUMN contractor_info.legal_person IS '法定代表人';
-COMMENT ON COLUMN contractor_info.establish_date IS '成立日期';
-COMMENT ON COLUMN contractor_info.registered_capital IS '注册资本（万元）';
-COMMENT ON COLUMN contractor_info.applicant_name IS '申请人姓名';
-COMMENT ON COLUMN contractor_info.business_status IS '营业状态';
-COMMENT ON COLUMN contractor_info.is_deleted IS '是否已删除（软删除标记）';
-COMMENT ON COLUMN contractor_info.active_enterprise_ids IS '合作状态企业ID列表';
-COMMENT ON COLUMN contractor_info.inactive_enterprise_ids IS '已失效合作企业ID列表';
-COMMENT ON COLUMN contractor_info.cooperation_detail_log IS '合作企业详情日志';
-COMMENT ON COLUMN contractor_info.modification_log IS '修改记录日志';
-COMMENT ON COLUMN contractor_info.created_at IS '创建时间';
-COMMENT ON COLUMN contractor_info.updated_at IS '最后修改时间';
 ```
-
-### JSONB字段结构说明
-
-#### active_enterprise_ids 字段结构
-
-```json
-[
-    1,
-    5,
-    10
-]
-```
-
-#### inactive_enterprise_ids 字段结构
-
-```json
-[
-    2,
-    3,
-    7
-]
-```
-
-#### cooperation_detail_log 字段结构
-
-```json
-[
-    {
-        "enterprise_id": 1,
-        "enterprise_name": "XX企业",
-        "start_date": "2024-01-01",
-        "end_date": null,
-        "status": "active",
-        "projects": [
-            {
-                "project_id": 100,
-                "project_name": "XX项目",
-                "start_date": "2024-01-15",
-                "end_date": "2024-12-31"
-            }
-        ],
-        "contract_amount": 1000000.00,
-        "notes": "合作顺利"
-    },
-    {
-        "enterprise_id": 2,
-        "enterprise_name": "YY企业",
-        "start_date": "2023-06-01",
-        "end_date": "2024-05-31",
-        "status": "inactive",
-        "projects": [
-            {
-                "project_id": 50,
-                "project_name": "YY项目",
-                "start_date": "2023-06-01",
-                "end_date": "2024-05-31"
-            }
-        ],
-        "contract_amount": 500000.00,
-        "termination_reason": "合同到期",
-        "notes": "合作愉快"
-    }
-]
-```
-
-#### modification_log 字段结构
-
-```json
-[
-    {
-        "timestamp": "2025-11-11T14:20:00",
-        "operator_id": 5,
-        "operator_name": "王五",
-        "operation": "update",
-        "field": "business_status",
-        "old_value": "续存",
-        "new_value": "注销",
-        "reason": "公司注销"
-    },
-    {
-        "timestamp": "2025-11-10T09:15:00",
-        "operator_id": 3,
-        "operator_name": "赵六",
-        "operation": "add_enterprise",
-        "enterprise_id": 1,
-        "enterprise_name": "XX企业",
-        "reason": "新增合作企业"
-    }
-]
-```
-
----
-
-## 3. 用户表 (users)
-
-### 表说明
-
-系统用户主表，存储所有用户的登录凭证和基本信息。通过外键关联到企业用户或承包商用户详细信息。
 
 ### 字段说明
 
-| 字段名 | 数据类型 | 约束 | 默认值 | 说明 |
-|--------|---------|------|--------|------|
-| user_id | INTEGER | PRIMARY KEY | AUTO | 用户唯一标识 |
-| username | VARCHAR(50) | UNIQUE, NOT NULL | - | 用户名（登录账号） |
-| password_hash | VARCHAR(255) | NOT NULL | - | 密码哈希值 |
-| user_type | VARCHAR(20) | NOT NULL | - | 用户类型（enterprise/contractor/admin） |
-| enterprise_staff_id | INTEGER | FK, NULL | - | 企业员工ID（外键关联enterprise_user） |
-| contractor_staff_id | INTEGER | FK, NULL | - | 承包商员工ID（外键关联contractor_user） |
-| created_at | TIMESTAMP | NOT NULL | NOW() | 创建时间 |
-| updated_at | TIMESTAMP | NOT NULL | NOW() | 最后修改时间 |
-
-### 创建表SQL语句
-
-```sql
-CREATE TABLE users (
-    user_id SERIAL PRIMARY KEY,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    user_type VARCHAR(20) NOT NULL CHECK (user_type IN ('enterprise', 'contractor', 'admin')),
-    enterprise_staff_id INTEGER,
-    contractor_staff_id INTEGER,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_enterprise_staff FOREIGN KEY (enterprise_staff_id) 
-        REFERENCES enterprise_user(user_id) ON DELETE SET NULL,
-    CONSTRAINT fk_contractor_staff FOREIGN KEY (contractor_staff_id) 
-        REFERENCES contractor_user(user_id) ON DELETE SET NULL
-);
-
--- 创建索引
-CREATE INDEX idx_users_username ON users(username);
-CREATE INDEX idx_users_user_type ON users(user_type);
-CREATE INDEX idx_users_enterprise_staff_id ON users(enterprise_staff_id);
-CREATE INDEX idx_users_contractor_staff_id ON users(contractor_staff_id);
-
--- 添加表注释
-COMMENT ON TABLE users IS '系统用户主表';
-COMMENT ON COLUMN users.user_type IS '用户类型：enterprise-企业用户, contractor-承包商用户, admin-管理员';
-```
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| contractor_id | SERIAL | 承包商ID，主键 |
+| license_file | VARCHAR(255) | 营业执照文件路径 |
+| company_name | VARCHAR(255) | 公司名称 |
+| company_type | VARCHAR(100) | 公司类型 |
+| legal_person | VARCHAR(100) | 法人 |
+| establish_date | DATE | 成立日期 |
+| registered_capital | NUMERIC(15, 2) | 注册资本 |
+| applicant_name | VARCHAR(100) | 申请人姓名 |
+| business_status | VARCHAR(50) | 经营状态，默认"续存" |
+| is_deleted | BOOLEAN | 是否删除，默认false |
+| active_enterprise_ids | JSONB | 活跃合作企业ID数组 |
+| inactive_enterprise_ids | JSONB | 非活跃合作企业ID数组 |
+| cooperation_detail_log | JSONB | 合作详情日志 |
+| modification_log | JSONB | 修改日志 |
+| created_at | TIMESTAMP | 创建时间 |
+| updated_at | TIMESTAMP | 更新时间 |
 
 ---
 
-## 4. 公司表 (company)
+## 6. contractor_project - 承包商项目表
 
-### 表说明
-
-公司基本信息表，用于存储企业和承包商的基本公司信息。
-
-### 创建表SQL语句
-
-```sql
-CREATE TABLE company (
-    company_id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    type VARCHAR(20) NOT NULL CHECK (type IN ('enterprise', 'contractor')),
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
--- 创建索引
-CREATE INDEX idx_company_name ON company(name);
-CREATE INDEX idx_company_type ON company(type);
-
--- 添加表注释
-COMMENT ON TABLE company IS '公司基本信息表';
-COMMENT ON COLUMN company.type IS '公司类型：enterprise-企业, contractor-承包商';
-```
-
----
-
-## 5. 企业用户表 (enterprise_user)
-
-### 表说明
-
-企业员工详细信息表，存储企业员工的个人信息、职位、部门等。
-
-### 创建表SQL语句
-
-```sql
-CREATE TABLE enterprise_user (
-    user_id SERIAL PRIMARY KEY,
-    company_id INTEGER NOT NULL,
-    dept_id INTEGER,
-    name VARCHAR(100) NOT NULL,
-    phone VARCHAR(20) NOT NULL,
-    email VARCHAR(100) NOT NULL,
-    position VARCHAR(100),
-    role_type VARCHAR(100) NOT NULL,
-    approval_level INTEGER NOT NULL DEFAULT 4,
-    status BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_enterprise_company FOREIGN KEY (company_id) 
-        REFERENCES company(company_id) ON DELETE CASCADE,
-    CONSTRAINT fk_enterprise_dept FOREIGN KEY (dept_id) 
-        REFERENCES department(dept_id) ON DELETE SET NULL
-);
-
--- 创建索引
-CREATE INDEX idx_enterprise_user_company_id ON enterprise_user(company_id);
-CREATE INDEX idx_enterprise_user_dept_id ON enterprise_user(dept_id);
-CREATE INDEX idx_enterprise_user_phone ON enterprise_user(phone);
-CREATE INDEX idx_enterprise_user_status ON enterprise_user(status);
-
--- 添加表注释
-COMMENT ON TABLE enterprise_user IS '企业用户详细信息表';
-COMMENT ON COLUMN enterprise_user.approval_level IS '审批级别（1-4级）';
-COMMENT ON COLUMN enterprise_user.status IS '用户状态（true-启用, false-禁用）';
-```
-
----
-
-## 6. 承包商用户表 (contractor_user)
-
-### 表说明
-
-承包商员工详细信息表，存储承包商员工的个人信息、工种、证件等。
-
-### 创建表SQL语句
-
-```sql
-CREATE TABLE contractor_user (
-    user_id SERIAL PRIMARY KEY,
-    contractor_id INTEGER NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    phone VARCHAR(20) NOT NULL,
-    id_number VARCHAR(50) NOT NULL,
-    work_type VARCHAR(100) NOT NULL,
-    role_type VARCHAR(10) NOT NULL DEFAULT 'normal',
-    personal_photo VARCHAR(255) NOT NULL,
-    status BOOLEAN NOT NULL DEFAULT false,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_contractor FOREIGN KEY (contractor_id) 
-        REFERENCES contractor(contractor_id) ON DELETE CASCADE
-);
-
--- 创建索引
-CREATE INDEX idx_contractor_user_contractor_id ON contractor_user(contractor_id);
-CREATE INDEX idx_contractor_user_phone ON contractor_user(phone);
-CREATE INDEX idx_contractor_user_id_number ON contractor_user(id_number);
-CREATE INDEX idx_contractor_user_status ON contractor_user(status);
-
--- 添加表注释
-COMMENT ON TABLE contractor_user IS '承包商用户详细信息表';
-COMMENT ON COLUMN contractor_user.work_type IS '工种类型';
-COMMENT ON COLUMN contractor_user.role_type IS '角色类型（normal-普通员工, leader-负责人）';
-```
-
----
-
-## 7. 部门表 (department)
-
-### 表说明
-
-部门组织结构表，支持树形层级结构。
-
-### 创建表SQL语句
-
-```sql
-CREATE TABLE department (
-    dept_id SERIAL PRIMARY KEY,
-    company_id INTEGER NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    parent_id INTEGER,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_dept_company FOREIGN KEY (company_id) 
-        REFERENCES company(company_id) ON DELETE CASCADE,
-    CONSTRAINT fk_dept_parent FOREIGN KEY (parent_id) 
-        REFERENCES department(dept_id) ON DELETE SET NULL
-);
-
--- 创建索引
-CREATE INDEX idx_department_company_id ON department(company_id);
-CREATE INDEX idx_department_parent_id ON department(parent_id);
-
--- 添加表注释
-COMMENT ON TABLE department IS '部门组织结构表';
-COMMENT ON COLUMN department.parent_id IS '上级部门ID（NULL表示顶级部门）';
-```
-
----
-
-## 8. 承包商项目表 (contractor_project)
-
-### 创建表SQL语句
+存储承包商项目信息
 
 ```sql
 CREATE TABLE contractor_project (
@@ -566,141 +234,38 @@ CREATE TABLE contractor_project (
     contractor_id INTEGER NOT NULL,
     enterprise_id INTEGER NOT NULL,
     project_name VARCHAR(255) NOT NULL,
-    leader_name VARCHAR(100) NOT NULL,
+    leader_name_str VARCHAR(100) NOT NULL,
     leader_phone VARCHAR(20) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_project_contractor FOREIGN KEY (contractor_id) 
-        REFERENCES contractor(contractor_id) ON DELETE CASCADE,
-    CONSTRAINT fk_project_enterprise FOREIGN KEY (enterprise_id) 
-        REFERENCES company(company_id) ON DELETE CASCADE
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
--- 创建索引
-CREATE INDEX idx_contractor_project_contractor_id ON contractor_project(contractor_id);
-CREATE INDEX idx_contractor_project_enterprise_id ON contractor_project(enterprise_id);
-
-COMMENT ON TABLE contractor_project IS '承包商项目表';
 ```
+
+### 字段说明
+
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| project_id | SERIAL | 项目ID，主键 |
+| contractor_id | INTEGER | 承包商ID |
+| enterprise_id | INTEGER | 企业ID |
+| project_name | VARCHAR(255) | 项目名称 |
+| leader_name_str | VARCHAR(100) | 负责人姓名 |
+| leader_phone | VARCHAR(20) | 负责人电话 |
+| created_at | TIMESTAMP | 创建时间 |
+| updated_at | TIMESTAMP | 更新时间 |
 
 ---
 
-## 9. 进场计划表 (entry_plan)
+## 7. ticket - 作业票表
 
-### 创建表SQL语句
-
-```sql
-CREATE TABLE entry_plan (
-    plan_id SERIAL PRIMARY KEY,
-    project_id INTEGER NOT NULL,
-    plan_date DATE NOT NULL,
-    status INTEGER NOT NULL DEFAULT 0,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_plan_project FOREIGN KEY (project_id) 
-        REFERENCES contractor_project(project_id) ON DELETE CASCADE
-);
-
--- 创建索引
-CREATE INDEX idx_entry_plan_project_id ON entry_plan(project_id);
-CREATE INDEX idx_entry_plan_plan_date ON entry_plan(plan_date);
-CREATE INDEX idx_entry_plan_status ON entry_plan(status);
-
-COMMENT ON TABLE entry_plan IS '进场计划表';
-COMMENT ON COLUMN entry_plan.status IS '计划状态（0-待执行, 1-执行中, 2-已完成）';
-```
-
----
-
-## 10. 进场计划人员表 (entry_plan_user)
-
-### 创建表SQL语句
-
-```sql
-CREATE TABLE entry_plan_user (
-    id SERIAL PRIMARY KEY,
-    project_id INTEGER NOT NULL,
-    plan_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_plan_user_project FOREIGN KEY (project_id) 
-        REFERENCES contractor_project(project_id) ON DELETE CASCADE,
-    CONSTRAINT fk_plan_user_plan FOREIGN KEY (plan_id) 
-        REFERENCES entry_plan(plan_id) ON DELETE CASCADE,
-    CONSTRAINT fk_plan_user_user FOREIGN KEY (user_id) 
-        REFERENCES contractor_user(user_id) ON DELETE CASCADE
-);
-
--- 创建索引
-CREATE INDEX idx_entry_plan_user_plan_id ON entry_plan_user(plan_id);
-CREATE INDEX idx_entry_plan_user_user_id ON entry_plan_user(user_id);
-
-COMMENT ON TABLE entry_plan_user IS '进场计划人员表';
-```
-
----
-
-## 11. 进场登记表 (entry_register)
-
-### 创建表SQL语句
-
-```sql
-CREATE TABLE entry_register (
-    register_id SERIAL PRIMARY KEY,
-    plan_user_id INTEGER NOT NULL,
-    actual_time TIMESTAMP NOT NULL,
-    photo_path VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_register_plan_user FOREIGN KEY (plan_user_id) 
-        REFERENCES entry_plan_user(id) ON DELETE CASCADE
-);
-
--- 创建索引
-CREATE INDEX idx_entry_register_plan_user_id ON entry_register(plan_user_id);
-CREATE INDEX idx_entry_register_actual_time ON entry_register(actual_time);
-
-COMMENT ON TABLE entry_register IS '进场登记表';
-```
-
----
-
-## 12. 区域表 (area)
-
-### 创建表SQL语句
-
-```sql
-CREATE TABLE area (
-    area_id SERIAL PRIMARY KEY,
-    enterprise_id INTEGER NOT NULL,
-    area_name VARCHAR(64) NOT NULL,
-    dept_id INTEGER,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_area_enterprise FOREIGN KEY (enterprise_id) 
-        REFERENCES company(company_id) ON DELETE CASCADE,
-    CONSTRAINT fk_area_dept FOREIGN KEY (dept_id) 
-        REFERENCES department(dept_id) ON DELETE SET NULL
-);
-
--- 创建索引
-CREATE INDEX idx_area_enterprise_id ON area(enterprise_id);
-CREATE INDEX idx_area_dept_id ON area(dept_id);
-
-COMMENT ON TABLE area IS '作业区域表';
-```
-
----
-
-## 13. 作业票表 (ticket)
-
-### 创建表SQL语句
+存储作业票信息
 
 ```sql
 CREATE TABLE ticket (
     ticket_id SERIAL PRIMARY KEY,
     apply_date DATE NOT NULL,
     applicant INTEGER NOT NULL,
-    area_id INTEGER NOT NULL,
+    area_id INTEGER,
     working_content VARCHAR(1024) NOT NULL,
     pre_st TIMESTAMP NOT NULL,
     pre_et TIMESTAMP NOT NULL,
@@ -716,210 +281,84 @@ CREATE TABLE ticket (
     cross_work_group_id VARCHAR(50),
     signature VARCHAR(255),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_ticket_applicant FOREIGN KEY (applicant) 
-        REFERENCES enterprise_user(user_id) ON DELETE CASCADE,
-    CONSTRAINT fk_ticket_area FOREIGN KEY (area_id) 
-        REFERENCES area(area_id) ON DELETE CASCADE,
-    CONSTRAINT fk_ticket_worker FOREIGN KEY (worker) 
-        REFERENCES contractor_user(user_id) ON DELETE CASCADE,
-    CONSTRAINT fk_ticket_custodian FOREIGN KEY (custodians) 
-        REFERENCES enterprise_user(user_id) ON DELETE CASCADE,
-    CONSTRAINT fk_ticket_confined_space FOREIGN KEY (confined_space_id) 
-        REFERENCES confined_space(confined_space_id) ON DELETE SET NULL,
-    CONSTRAINT fk_ticket_temp_power FOREIGN KEY (temp_power_id) 
-        REFERENCES temporary_power(temp_power_id) ON DELETE SET NULL
-);
-
--- 创建索引
-CREATE INDEX idx_ticket_apply_date ON ticket(apply_date);
-CREATE INDEX idx_ticket_applicant ON ticket(applicant);
-CREATE INDEX idx_ticket_area_id ON ticket(area_id);
-CREATE INDEX idx_ticket_worker ON ticket(worker);
-CREATE INDEX idx_ticket_hot_work ON ticket(hot_work);
-
-COMMENT ON TABLE ticket IS '作业票表';
-COMMENT ON COLUMN ticket.hot_work IS '动火等级：-1-未动火, 0-特级动火, 1-一级动火, 2-二级动火';
-COMMENT ON COLUMN ticket.work_height_level IS '作业高度等级：0-4级';
-```
-
----
-
-## 14. 作业设备表 (work_equipment)
-
-### 创建表SQL语句
-
-```sql
-CREATE TABLE work_equipment (
-    equipment_id SERIAL PRIMARY KEY,
-    equipment_name VARCHAR(100) NOT NULL,
-    equipment_power VARCHAR(50) NOT NULL,
-    work_voltage VARCHAR(50) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
--- 创建索引
-CREATE INDEX idx_work_equipment_name ON work_equipment(equipment_name);
-
-COMMENT ON TABLE work_equipment IS '作业设备表';
 ```
+
+### 字段说明
+
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| ticket_id | SERIAL | 作业票ID，主键 |
+| apply_date | DATE | 申请日期 |
+| applicant | INTEGER | 申请人ID（企业用户） |
+| area_id | INTEGER | 作业区域ID |
+| working_content | VARCHAR(1024) | 作业内容 |
+| pre_st | TIMESTAMP | 预计开始时间 |
+| pre_et | TIMESTAMP | 预计结束时间 |
+| tools | INTEGER | 工具标识，默认0 |
+| worker | INTEGER | 作业人员ID（承包商用户） |
+| custodians | INTEGER | 监护人ID（企业用户） |
+| danger | INTEGER | 危险标识，默认0 |
+| protection | INTEGER | 防护标识，默认0 |
+| hot_work | INTEGER | 动火作业标识，默认-1 |
+| work_height_level | INTEGER | 高处作业等级，默认0 |
+| confined_space_id | INTEGER | 受限空间ID |
+| temp_power_id | INTEGER | 临时用电ID |
+| cross_work_group_id | VARCHAR(50) | 交叉作业组ID |
+| signature | VARCHAR(255) | 签名文件路径 |
+| created_at | TIMESTAMP | 创建时间 |
+| updated_at | TIMESTAMP | 更新时间 |
 
 ---
 
-## 15. 受限空间表 (confined_space)
+## 表关系说明
 
-### 创建表SQL语句
+### 外键约束
 
-```sql
-CREATE TABLE confined_space (
-    confined_space_id SERIAL PRIMARY KEY,
-    ticket_id INTEGER NOT NULL,
-    space_level INTEGER NOT NULL,
-    space_name VARCHAR(50) NOT NULL,
-    original_medium VARCHAR(50) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_confined_space_ticket FOREIGN KEY (ticket_id) 
-        REFERENCES ticket(ticket_id) ON DELETE CASCADE
-);
+- `users.enterprise_staff_id` → `enterprise_user.user_id`
+- `users.contractor_staff_id` → `contractor_user.user_id`
+- `enterprise_info.parent_enterprise_id` → `enterprise_info.enterprise_id`
+- `ticket.applicant` → `enterprise_user.user_id`
+- `ticket.worker` → `contractor_user.user_id`
+- `ticket.custodians` → `enterprise_user.user_id`
 
--- 创建索引
-CREATE INDEX idx_confined_space_ticket_id ON confined_space(ticket_id);
+### 索引
 
-COMMENT ON TABLE confined_space IS '受限空间表';
-COMMENT ON COLUMN confined_space.space_level IS '受限空间等级（1-一级, 2-二级）';
-```
+**users表:**
+- `idx_users_username` (username)
+- `idx_users_user_type` (user_type)
 
----
+**enterprise_info表:**
+- `idx_enterprise_company_name` (company_name)
+- `idx_enterprise_business_status` (business_status)
+- `idx_enterprise_is_deleted` (is_deleted)
+- `idx_enterprise_parent_id` (parent_enterprise_id)
+- `idx_enterprise_subsidiary_ids` (subsidiary_ids) - GIN索引
+- `idx_enterprise_allowed_contractor_ids` (allowed_contractor_ids) - GIN索引
 
-## 16. 临时用电表 (temporary_power)
+**contractor_info表:**
+- `idx_contractor_info_company_name` (company_name)
+- `idx_contractor_info_business_status` (business_status)
+- `idx_contractor_info_is_deleted` (is_deleted)
+- `idx_contractor_info_active_enterprise_ids` (active_enterprise_ids) - GIN索引
+- `idx_contractor_info_inactive_enterprise_ids` (inactive_enterprise_ids) - GIN索引
 
-### 创建表SQL语句
+**contractor_project表:**
+- `idx_contractor_project_contractor_id` (contractor_id)
+- `idx_contractor_project_enterprise_id` (enterprise_id)
 
-```sql
-CREATE TABLE temporary_power (
-    temp_power_id SERIAL PRIMARY KEY,
-    ticket_id INTEGER NOT NULL,
-    equipment_id INTEGER NOT NULL,
-    power_access_point VARCHAR(100) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_temp_power_ticket FOREIGN KEY (ticket_id) 
-        REFERENCES ticket(ticket_id) ON DELETE CASCADE,
-    CONSTRAINT fk_temp_power_equipment FOREIGN KEY (equipment_id) 
-        REFERENCES work_equipment(equipment_id) ON DELETE CASCADE
-);
+**ticket表:**
+- `idx_ticket_apply_date` (apply_date)
+- `idx_ticket_applicant` (applicant)
+- `idx_ticket_worker` (worker)
 
--- 创建索引
-CREATE INDEX idx_temporary_power_ticket_id ON temporary_power(ticket_id);
+### 触发器
 
-COMMENT ON TABLE temporary_power IS '临时用电表';
-```
+- `trigger_update_enterprise_info_updated_at` - 自动更新enterprise_info表的updated_at字段
+- `trigger_update_contractor_info_updated_at` - 自动更新contractor_info表的updated_at字段
 
 ---
 
-## 17. 交叉作业表 (cross_work)
+**最后更新时间**: 2025-11-11
 
-### 创建表SQL语句
-
-```sql
-CREATE TABLE cross_work (
-    id SERIAL PRIMARY KEY,
-    group_id VARCHAR(50) NOT NULL,
-    area_id INTEGER NOT NULL,
-    ticket_id INTEGER NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_cross_work_area FOREIGN KEY (area_id) 
-        REFERENCES area(area_id) ON DELETE CASCADE,
-    CONSTRAINT fk_cross_work_ticket FOREIGN KEY (ticket_id) 
-        REFERENCES ticket(ticket_id) ON DELETE CASCADE
-);
-
--- 创建索引
-CREATE INDEX idx_cross_work_group_id ON cross_work(group_id);
-CREATE INDEX idx_cross_work_ticket_id ON cross_work(ticket_id);
-
-COMMENT ON TABLE cross_work IS '交叉作业表';
-COMMENT ON COLUMN cross_work.group_id IS '交叉作业组ID（同一组内的作业票为交叉作业）';
-```
-
----
-
-## 完整建表脚本执行顺序
-
-由于表之间存在外键依赖关系，建议按以下顺序执行建表语句：
-
-1. 删除旧表（如果存在）
-2. company
-3. enterprise_info
-4. contractor_info
-5. contractor (旧表，保持向后兼容)
-6. department
-7. enterprise_user
-8. contractor_user
-9. users
-10. contractor_project
-11. entry_plan
-12. entry_plan_user
-13. entry_register
-14. area
-15. work_equipment
-16. ticket
-17. confined_space
-18. temporary_power
-19. cross_work
-
----
-
-## 数据迁移建议
-
-如果系统中已有数据，需要进行数据迁移：
-
-### 1. 备份现有数据
-
-```sql
--- 备份contractor表数据
-CREATE TABLE contractor_backup AS SELECT * FROM contractor;
-```
-
-### 2. 迁移数据到新表
-
-```sql
--- 将contractor表数据迁移到contractor_info表
-INSERT INTO contractor_info (
-    contractor_id,
-    license_file,
-    company_name,
-    company_type,
-    legal_person,
-    establish_date,
-    registered_capital,
-    applicant_name,
-    business_status,
-    is_deleted,
-    created_at,
-    updated_at
-)
-SELECT 
-    contractor_id,
-    license_file,
-    company_name,
-    company_type,
-    legal_person,
-    establish_date,
-    registered_capital,
-    applicant_name,
-    '续存' as business_status,
-    false as is_deleted,
-    created_at,
-    updated_at
-FROM contractor_backup;
-```
-
----
-
-**文档版本**: v1.0  
-**最后更新**: 2025-11-11  
-**维护人员**: EHS系统开发团队

@@ -9,15 +9,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import select, and_
 
 from api.model import (
-    Contractor,
     ContractorListItem,
     User,
     UserType,
-    ContractorUser
+    ContractorUser,
+    ContractorInfo
 )
 from core import password as pwd
 from db import crud
-from db.models import Contractor as ContractorDB, ContractorUser as ContractorUserDB
+from db.models import ContractorInfo as ContractorDB, ContractorUser as ContractorUserDB
 from routes.dependencies import get_current_user
 
 router = APIRouter()
@@ -31,7 +31,7 @@ def verify_admin(user: User = Depends(get_current_user)):
 
 
 @router.post("/", dependencies=[Depends(verify_admin)])
-async def create_contractor(contractor: Contractor):
+async def create_contractor(contractor: ContractorInfo):
     """
     创建承包商
     
@@ -40,7 +40,7 @@ async def create_contractor(contractor: Contractor):
     from main import app
     
     try:
-        contractor_db = await crud.create_contractor(app.state.engine, contractor)
+        contractor_db = await crud.create_contractor_info(app.state.engine, contractor)
         return {
             "message": "承包商创建成功",
             "contractor_id": contractor_db.contractor_id
@@ -178,7 +178,7 @@ async def get_contractor_detail(
 
 
 @router.put("/{contractor_id}/", dependencies=[Depends(verify_admin)])
-async def update_contractor(contractor_id: int, contractor_data: Contractor):
+async def update_contractor(contractor_id: int, contractor_data: ContractorInfo):
     """
     更新承包商信息
     

@@ -33,14 +33,15 @@ export const useAuthStore = defineStore('auth', () => {
       loading.value = true
       error.value = null
 
-      await apiService.login(credentials)
+      const tokenResponse = await apiService.login(credentials)
       // 登录成功后获取用户信息
       await checkAuth()
 
-      return true
+      // 返回token响应，包含redirect_to和message信息
+      return tokenResponse
     } catch (err) {
       error.value = err instanceof Error ? err.message : '登录失败'
-      return false
+      return null
     } finally {
       loading.value = false
     }

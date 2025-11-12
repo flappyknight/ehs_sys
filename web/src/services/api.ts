@@ -228,6 +228,30 @@ export class ApiService {
     })
   }
 
+  // 管理员权限申请提交
+  async submitAdminPermissionApply(applyData: any): Promise<{ message: string; user_id: number }> {
+    return this.request<{ message: string; user_id: number }>('/admin/permission-apply/submit', {
+      method: 'POST',
+      body: JSON.stringify(applyData),
+    })
+  }
+
+  // 企业绑定信息提交
+  async submitEnterpriseBind(bindData: any): Promise<{ message: string; user_id: number }> {
+    return this.request<{ message: string; user_id: number }>('/enterprise-backend/bind/submit', {
+      method: 'POST',
+      body: JSON.stringify(bindData),
+    })
+  }
+
+  // 承包商绑定信息提交
+  async submitContractorBind(bindData: any): Promise<{ message: string; user_id: number }> {
+    return this.request<{ message: string; user_id: number }>('/contractor-backend/bind/submit', {
+      method: 'POST',
+      body: JSON.stringify(bindData),
+    })
+  }
+
   // 登出
   async logout(): Promise<void> {
     TokenManager.removeToken()

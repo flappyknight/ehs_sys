@@ -12,8 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from api.model import Token, User, RegisterRequest
 from config import settings
-from core.password import get_password_hash
-from db.models import User as DBUser, EnterpriseUser, Contractor, ContractorUser
 from .dependencies import (
     authenticate_user,
     create_access_token,
@@ -28,7 +26,7 @@ router = APIRouter()
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
 ) -> Token:
-    """用户登录获取访问令牌"""
+    """用户登录获取访问令牌 - 包含权限验证逻辑"""
     from main import app  # 延迟导入避免循环依赖
     
     # 打印登录数据
@@ -48,14 +46,78 @@ async def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    print(f"✅ 登录成功: 用户类型={user.user_type}")
+    print(f"✅ 登录成功: 用户类型={user.user_type}, user_level={user.user_level}, audit_status={user.audit_status}")
+    
+    # 权限验证逻辑
+    redirect_to = None
+    message = None
+    
+    if user.user_type == "admin":
+        # 管理员：先检查user_level
+        if user.user_level == -1:
+            # 还没有通过审批，跳转到权限申请页面
+            redirect_to = "/admin/permission-apply"
+            message = "请先提交权限申请信息"
+        else:
+            # 已经提交了申请，检查audit_status
+            if user.audit_status == 1:
+                # 还未提交审核，跳转到权限申请页面
+                redirect_to = "/admin/permission-apply"
+                message = "请先提交权限申请信息"
+            elif user.audit_status == 2:
+                # 审核通过，可以进入主页面
+                redirect_to = "/dashboard"
+            elif user.audit_status == 3:
+                # 待审核状态，提示等待审核
+                redirect_to = "/login"
+                message = "您的权限申请正在审核中，请耐心等待"
+            else:
+                redirect_to = "/dashboard"
+    
+    elif user.user_type == "enterprise":
+        # 企业用户：检查audit_status
+        if user.audit_status == 1:
+            # 还没有绑定企业，跳转到绑定企业页面
+            redirect_to = "/enterprise/bind"
+            message = "请先绑定企业信息"
+        elif user.audit_status == 2:
+            # 审核通过，可以进入主页面
+            redirect_to = "/dashboard"
+        elif user.audit_status == 3:
+            # 待审核状态，提示等待审核
+            redirect_to = "/login"
+            message = "您的企业信息正在审核中，请耐心等待"
+        else:
+            redirect_to = "/dashboard"
+    
+    elif user.user_type == "contractor":
+        # 承包商用户：检查audit_status
+        if user.audit_status == 1:
+            # 还没有绑定供应商，跳转到绑定供应商页面
+            redirect_to = "/contractor/bind"
+            message = "请先绑定供应商信息"
+        elif user.audit_status == 2:
+            # 审核通过，可以进入主页面
+            redirect_to = "/dashboard"
+        elif user.audit_status == 3:
+            # 待审核状态，提示等待审核
+            redirect_to = "/login"
+            message = "您的供应商信息正在审核中，请耐心等待"
+        else:
+            redirect_to = "/dashboard"
     
     access_token_expires = settings.access_token_expire_minutes
     access_token = create_access_token(
         data={"sub": user.username, "user_type": user.user_type}, 
         expires_delta=access_token_expires
     )
-    return Token(access_token=access_token, token_type="bearer")
+    
+    return Token(
+        access_token=access_token, 
+        token_type="bearer",
+        redirect_to=redirect_to,
+        message=message
+    )
 
 
 @router.get("/users/me/")
@@ -69,31 +131,18 @@ async def register_user(
     register_data: RegisterRequest,
     engine: AsyncEngine = Depends(get_engine)
 ):
-    """用户注册（暂时只打印数据，不写入数据库）"""
+    """用户注册 - 根据用户类型分发到不同的处理模块"""
     
     # 打印注册数据
     print("\n" + "=" * 60)
-    print("【注册请求】")
+    print("【注册请求 - 路由分发】")
     print(f"注册时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"用户类型: {register_data.userType}")
     print(f"用户名: {register_data.username}")
     print(f"密码: {'*' * len(register_data.password)}")  # 密码不明文打印
-    print(f"姓名: {register_data.name}")
     print(f"手机号: {register_data.phone}")
-    print(f"邮箱: {register_data.email or '未填写'}")
-    
-    if register_data.userType == 'enterprise':
-        print(f"\n【企业用户信息】")
-        print(f"企业名称: {register_data.companyName}")
-        print(f"职位: {register_data.position or '未填写'}")
-    elif register_data.userType == 'contractor':
-        print(f"\n【承包商用户信息】")
-        print(f"承包商公司名称: {register_data.contractorCompanyName}")
-    elif register_data.userType == 'admin':
-        print(f"\n【系统管理员信息】")
-        print(f"管理员授权码: {register_data.adminCode or '未填写'}")
-        print(f"所属部门: {register_data.department or '未填写'}")
-    
+    print(f"邮箱: {register_data.email}")
+    print(f"临时Token: {register_data.temp_token}")
     print("=" * 60 + "\n")
     
     # 验证用户类型
@@ -103,13 +152,42 @@ async def register_user(
             detail="无效的用户类型"
         )
     
-    # 暂时返回成功（不实际写入数据库）
-    return {
-        "message": "注册数据已接收（测试模式，未写入数据库）",
-        "user_id": 999,  # 模拟的用户ID
-        "username": register_data.username,
-        "userType": register_data.userType
-    }
+    # 根据用户类型分发到不同的处理模块
+    try:
+        if register_data.userType == 'enterprise':
+            # 分发到企业用户注册处理
+            from routes.enterprise_backend.register import handle_enterprise_registration
+            print("🔀 路由分发: routes/enterprise_backend/register.py")
+            result = await handle_enterprise_registration(register_data, engine)
+            
+        elif register_data.userType == 'contractor':
+            # 分发到承包商用户注册处理
+            from routes.contractor_backend.register import handle_contractor_registration
+            print("🔀 路由分发: routes/contractor_backend/register.py")
+            result = await handle_contractor_registration(register_data, engine)
+            
+        elif register_data.userType == 'admin':
+            # 分发到系统管理员注册处理
+            from routes.admin.register import handle_admin_registration
+            print("🔀 路由分发: routes/admin/register.py")
+            result = await handle_admin_registration(register_data, engine)
+        
+        return result
+        
+    except ValueError as e:
+        # 业务逻辑错误（如用户名已存在）
+        print(f"❌ 注册失败: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        # 其他错误
+        print(f"❌ 注册失败: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"注册失败: {str(e)}"
+        )
 
 
 @router.post("/logout")
