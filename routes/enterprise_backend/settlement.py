@@ -15,22 +15,16 @@ from core import password as pwd
 router = APIRouter()
 
 
+# 企业入驻申请
 @router.post("/settlement/enterprise")
 async def submit_enterprise_settlement(
-    # 企业基本信息
+    # 企业基本信息（对应enterprise_info表）
     companyName: str = Form(...),
-    legalPerson: str = Form(...),
-    contactPhone: str = Form(...),
-    address: str = Form(...),
-    industryType: str = Form(...),
-    employeeCount: str = Form(...),
-    businessLicense: str = Form(...),
-    licenseFile: Optional[UploadFile] = File(None),
-    # 联系人信息
-    contactName: str = Form(...),
-    contactPosition: Optional[str] = Form(None),
-    contactEmail: str = Form(...),
-    remarks: Optional[str] = Form(None),
+    licenseFile: UploadFile = File(...),
+    legalPerson: Optional[str] = Form(None),
+    establishDate: Optional[str] = Form(None),
+    registeredCapital: Optional[str] = Form(None),
+    applicantName: Optional[str] = Form(None),
     # 管理员信息
     adminUsername: str = Form(...),
     adminPassword: str = Form(...),
@@ -54,6 +48,21 @@ async def submit_enterprise_settlement(
     async with engine.begin() as conn:
         try:
             # ========== 1. 唯一性检查 ==========
+            # 检查企业名称是否已存在
+            check_company_name_query = text("""
+                SELECT enterprise_id FROM enterprise_info 
+                WHERE company_name = :company_name AND is_deleted = false
+            """)
+            result = await conn.execute(check_company_name_query, {
+                "company_name": companyName
+            })
+            existing = result.fetchone()
+            if existing:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="该公司已经被注册"
+                )
+            
             # 检查users表中的username, phone, email
             check_users_query = text("""
                 SELECT user_id FROM users 
@@ -105,24 +114,38 @@ async def submit_enterprise_settlement(
                 )
             
             # ========== 2. 处理文件上传 ==========
-            license_file_path = ""
-            if licenseFile:
-                # 这里可以保存文件到服务器，暂时只保存路径
-                # 实际项目中应该保存文件并返回文件路径
-                license_file_path = f"uploads/enterprise/{datetime.now().strftime('%Y%m%d')}/{licenseFile.filename}"
-            else:
-                # 如果没有上传文件，使用默认值或必填
-                license_file_path = f"pending_{businessLicense}"
+            # 这里可以保存文件到服务器，暂时只保存路径
+            # 实际项目中应该保存文件并返回文件路径
+            license_file_path = f"uploads/enterprise/{datetime.now().strftime('%Y%m%d')}/{licenseFile.filename}"
             
             # ========== 3. 创建enterprise_info表记录 ==========
+            # 处理日期格式
+            establish_date_value = None
+            if establishDate:
+                try:
+                    establish_date_value = datetime.strptime(establishDate, "%Y-%m-%d").date()
+                except ValueError:
+                    pass  # 如果日期格式错误，设为None
+            
+            # 处理注册资本
+            registered_capital_value = None
+            if registeredCapital:
+                try:
+                    # 前端传入的是万元，需要转换为元
+                    registered_capital_value = float(registeredCapital) * 10000
+                except ValueError:
+                    pass  # 如果转换失败，设为None
+            
             insert_enterprise_info_query = text("""
                 INSERT INTO enterprise_info (
-                    license_file, company_name, company_type, legal_person,
-                    business_status, applicant_name,
+                    license_file, company_name, legal_person,
+                    establish_date, registered_capital, applicant_name,
+                    business_status,
                     created_at, updated_at
                 ) VALUES (
-                    :license_file, :company_name, :company_type, :legal_person,
-                    :business_status, :applicant_name,
+                    :license_file, :company_name, :legal_person,
+                    :establish_date, :registered_capital, :applicant_name,
+                    :business_status,
                     :created_at, :updated_at
                 ) RETURNING enterprise_id
             """)
@@ -130,10 +153,11 @@ async def submit_enterprise_settlement(
             result = await conn.execute(insert_enterprise_info_query, {
                 "license_file": license_file_path,
                 "company_name": companyName,
-                "company_type": industryType,  # 使用industryType作为company_type
                 "legal_person": legalPerson,
+                "establish_date": establish_date_value,
+                "registered_capital": registered_capital_value,
+                "applicant_name": applicantName,
                 "business_status": "待审核",
-                "applicant_name": contactName,  # 使用联系人姓名作为申请人
                 "created_at": datetime.now(),
                 "updated_at": datetime.now()
             })
@@ -158,10 +182,10 @@ async def submit_enterprise_settlement(
                 "name_str": adminUsername,  # 使用管理员用户名作为name_str
                 "phone": adminPhone,
                 "email": adminEmail,
-                "position": contactPosition if contactPosition else "管理员",
-                "role_type": "admin",  # 管理员角色
-                "approval_level": 4,  # 默认审批级别
-                "status": 1,  # 默认状态
+                "position": "管理员",  # 默认职位
+                "role_type": "admin",  # 管理员角色，admin 企业最高管理员，manager 企业管理员，site_staff 企业部门管理人员，staff 企业员工
+                "approval_level": 1,  # 默认企业最高管理员，0 企业最高管理员，1 企业管理员，2 企业部门管理人员，3 企业员工
+                "status": 1,  # 默认状态 待审核，1 待审核，2 审核通过，3 审核不通过，4 已注销
                 "created_at": datetime.now(),
                 "updated_at": datetime.now()
             })
@@ -234,4 +258,3 @@ async def submit_enterprise_settlement(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"提交申请失败: {str(e)}"
             )
-

@@ -17,6 +17,24 @@ import AreaManagement from '@/views/AreaManagement.vue'
 import StaffManagement from '@/views/StaffManagement.vue'
 import DepartmentMembers from '@/views/DepartmentMembers.vue'
 import MainLayout from '@/layouts/MainLayout.vue'
+// 企业管理相关页面
+import EnterpriseManagement from '@/views/EnterpriseManagement.vue'
+import EnterpriseDetail from '@/views/EnterpriseDetail.vue'
+import EnterpriseStaff from '@/views/EnterpriseStaff.vue'
+import EnterpriseTickets from '@/views/EnterpriseTickets.vue'
+import EnterpriseRoles from '@/views/EnterpriseRoles.vue'
+import EnterpriseApproval from '@/views/EnterpriseApproval.vue'
+// 供应商管理相关页面
+import ContractorManagement from '@/views/ContractorManagement.vue'
+import ContractorDetail from '@/views/ContractorDetail.vue'
+import ContractorStaff from '@/views/ContractorStaff.vue'
+import ContractorApproval from '@/views/ContractorApproval.vue'
+import ContractorCooperation from '@/views/ContractorCooperation.vue'
+// 审批相关页面
+import ApprovalManagement from '@/views/ApprovalManagement.vue'
+import ApprovalEnterprise from '@/views/ApprovalEnterprise.vue'
+import ApprovalContractor from '@/views/ApprovalContractor.vue'
+import ApprovalAdmin from '@/views/ApprovalAdmin.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -89,6 +107,85 @@ const router = createRouter({
           name: 'Dashboard',
           component: Dashboard
         },
+        // 企业管理
+        {
+          path: 'enterprise',
+          name: 'EnterpriseManagement',
+          component: EnterpriseManagement
+        },
+        {
+          path: 'enterprise/detail',
+          name: 'EnterpriseDetail',
+          component: EnterpriseDetail
+        },
+        {
+          path: 'enterprise/staff',
+          name: 'EnterpriseStaff',
+          component: EnterpriseStaff
+        },
+        {
+          path: 'enterprise/tickets',
+          name: 'EnterpriseTickets',
+          component: EnterpriseTickets
+        },
+        {
+          path: 'enterprise/roles',
+          name: 'EnterpriseRoles',
+          component: EnterpriseRoles
+        },
+        {
+          path: 'enterprise/approval',
+          name: 'EnterpriseApproval',
+          component: EnterpriseApproval
+        },
+        // 供应商管理
+        {
+          path: 'contractor',
+          name: 'ContractorManagement',
+          component: ContractorManagement
+        },
+        {
+          path: 'contractor/detail',
+          name: 'ContractorDetail',
+          component: ContractorDetail
+        },
+        {
+          path: 'contractor/staff',
+          name: 'ContractorStaff',
+          component: ContractorStaff
+        },
+        {
+          path: 'contractor/approval',
+          name: 'ContractorApproval',
+          component: ContractorApproval
+        },
+        {
+          path: 'contractor/cooperation',
+          name: 'ContractorCooperation',
+          component: ContractorCooperation
+        },
+        // 审批
+        {
+          path: 'approval',
+          name: 'ApprovalManagement',
+          component: ApprovalManagement
+        },
+        {
+          path: 'approval/enterprise',
+          name: 'ApprovalEnterprise',
+          component: ApprovalEnterprise
+        },
+        {
+          path: 'approval/contractor',
+          name: 'ApprovalContractor',
+          component: ApprovalContractor
+        },
+        {
+          path: 'approval/admin',
+          name: 'ApprovalAdmin',
+          component: ApprovalAdmin
+        },
+        // 保留旧路由（兼容性）
         {
           path: 'projects',
           name: 'ProjectList',
@@ -100,7 +197,7 @@ const router = createRouter({
           component: ProjectDetail
         },
         {
-          path: 'contractor',
+          path: 'contractor-old',
           name: 'ContractorViews',
           component: ContractorViews
         },

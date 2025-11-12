@@ -6,37 +6,15 @@
       </div>
 
       <div class="nav-menu">
-        <template v-for="item in visibleNavItems" :key="item.key">
-          <div v-if="item.children" class="nav-dropdown">
-            <button
-              class="nav-item dropdown-toggle"
-              :class="{ 'active': isDropdownActive(item) }"
-            >
-              {{ item.label }}
-              <span class="dropdown-arrow">▼</span>
-            </button>
-            <div class="dropdown-menu">
-              <router-link
-                v-for="child in item.children"
-                :key="child.key"
-                :to="child.path || '#'"
-                class="dropdown-item"
-                exact-active-class="active"
-              >
-                {{ child.label }}
-              </router-link>
-            </div>
-          </div>
-
-          <router-link
-            v-else
-            :to="item.path || '#'"
-            class="nav-item"
-            exact-active-class="active"
-          >
-            {{ item.label }}
-          </router-link>
-        </template>
+        <router-link
+          v-for="item in visibleNavItems"
+          :key="item.key"
+          :to="item.path || '#'"
+          class="nav-item"
+          exact-active-class="active"
+        >
+          {{ item.label }}
+        </router-link>
       </div>
 
       <div class="nav-user">
@@ -65,23 +43,9 @@ const authStore = useAuthStore()
 // 所有可能的导航项
 const allNavItems: NavItem[] = [
   { key: 'overview', label: '总览', path: '/dashboard' },
-  { key: 'company', label: '公司', path: '/company' },
-  { key: 'project', label: '项目', path: '/projects' },
-  { key: 'site', label: '厂区管理', path: '/areas' },
-  { key: 'personnel', label: '人员管理', path: '/staff' },  // 更新为正确的人员管理路径
-  { key: 'operation', label: '作业管理', path: '/operation' },
-  {
-    key: 'approval',
-    label: '审批',
-    children: [
-      { key: 'plan_approval', label: '计划审批', path: '/approval/plan' },
-      { key: 'operation_approval', label: '作业审批', path: '/approval/operation' },
-      { key: 'registration_approval', label: '登记审批', path: '/approval/registration' }
-    ]
-  },
-  { key: 'contractor', label: '承包商', path: '/contractor' },
-  { key: 'plan_application', label: '计划申请', path: '/plan-application' },
-  { key: 'entry_registration', label: '入场登记', path: '/entry-registration' }
+  { key: 'enterprise', label: '企业管理', path: '/enterprise' },
+  { key: 'contractor', label: '供应商管理', path: '/contractor' },
+  { key: 'approval', label: '审批', path: '/approval' }
 ]
 
 // 检查下拉菜单是否应该高亮
@@ -112,65 +76,13 @@ const getCurrentUserRole = (): UserRole => {
 
 // 根据用户角色获取可见的导航项
 const getVisibleNavKeys = (role: UserRole): string[] => {
-  const navConfig: Record<UserRole, string[]> = {
-    admin: [
-      'overview', 'company', 'project', 'site', 'personnel',
-      'operation', 'approval', 'contractor'
-    ],
-    enterprise_manager: [
-      'overview', 'project', 'site', 'personnel',
-      'operation', 'approval', 'contractor'
-    ],
-    enterprise_approver: [
-      'overview', 'project', 'site', 'personnel',
-      'operation', 'approval', 'contractor'
-    ],
-    enterprise_site_staff: [
-      'overview', 'project', 'operation', 'approval'
-    ],
-    contractor_manager: [
-      'overview', 'project', 'personnel', 'operation',
-      'approval', 'plan_application', 'entry_registration'
-    ],
-    contractor_approver: [
-      'overview', 'operation', 'contractor', 'entry_registration'
-    ],
-    contractor_site_staff: [
-      'overview', 'operation', 'contractor', 'entry_registration'
-    ]
-  }
-
-  return navConfig[role] || navConfig.enterprise_site_staff
+  // 所有用户都可以看到所有导航项
+  return ['overview', 'enterprise', 'contractor', 'approval']
 }
 
 // 计算可见的导航项
 const visibleNavItems = computed(() => {
-  const userRole = getCurrentUserRole()
-  const visibleKeys = getVisibleNavKeys(userRole)
-
-  return allNavItems.filter(item => {
-    // 如果是普通导航项，直接检查是否在可见列表中
-    if (!item.children) {
-      return visibleKeys.includes(item.key)
-    }
-
-    // 如果是带子项的导航项（如审批），检查是否有可见的子项
-    if (item.key === 'approval') {
-      // 审批项始终显示，子项根据权限过滤
-      return visibleKeys.includes('approval')
-    }
-
-    return visibleKeys.includes(item.key)
-  }).map(item => {
-    // 对于审批项，过滤子项
-    if (item.key === 'approval' && item.children) {
-      return {
-        ...item,
-        children: item.children // 显示所有审批子项
-      }
-    }
-    return item
-  })
+  return allNavItems
 })
 
 // 获取用户角色显示文本

@@ -50,6 +50,9 @@ CREATE TABLE IF NOT EXISTS enterprise_user (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+-- approval_level： 0 企业最高管理员，1 企业管理员，2 企业部门管理人员，3 企业员工
+-- status： 1 待审核，2 审核通过，3 审核不通过，4 已注销
+-- role_type： admin 企业最高管理员，manager 企业管理员，site_staff 企业部门管理人员，staff 企业员工
 
 -- 承包商用户表
 CREATE TABLE IF NOT EXISTS contractor_user (
