@@ -1,6 +1,6 @@
 """
-企业入驻申请路由
-Enterprise settlement application routes
+承包商入驻申请路由
+Contractor settlement application routes
 """
 from datetime import datetime
 from typing import Optional
@@ -15,18 +15,22 @@ from core import password as pwd
 router = APIRouter()
 
 
-# 企业入驻申请
-@router.post("/settlement/enterprise")
-async def submit_enterprise_settlement(
-    # 企业基本信息（对应enterprise_info表）
+# 承包商入驻申请
+@router.post("/settlement/contractor")
+async def submit_contractor_settlement(
+    # 承包商基本信息（对应contractor_info表）
     companyName: str = Form(...),
     licenseFile: UploadFile = File(...),
     licenseNumber: str = Form(...),  # 营业执照号码，必填
-    companyAddress: str = Form(...),  # 公司地址，必填
+    companyType: Optional[str] = Form(None),
+    serviceScope: Optional[str] = Form(None),
     legalPerson: Optional[str] = Form(None),
     establishDate: Optional[str] = Form(None),
     registeredCapital: Optional[str] = Form(None),
+    companyAddress: str = Form(...),  # 公司地址，必填
+    businessLicense: Optional[str] = Form(None),
     applicantName: Optional[str] = Form(None),
+    remarks: Optional[str] = Form(None),
     # 管理员信息
     adminUsername: str = Form(...),
     adminPassword: str = Form(...),
@@ -36,14 +40,14 @@ async def submit_enterprise_settlement(
     engine: AsyncEngine = Depends(get_engine)
 ):
     """
-    提交企业入驻申请
+    提交承包商入驻申请
     
-    创建企业信息和管理员用户账号
+    创建承包商信息和管理员用户账号
     """
     print("\n" + "=" * 60)
-    print("【企业入驻申请】")
+    print("【承包商入驻申请】")
     print(f"申请时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"企业名称: {companyName}")
+    print(f"承包商公司名称: {companyName}")
     print(f"营业执照号码: {licenseNumber}")
     print(f"公司地址: {companyAddress}")
     print(f"管理员用户名: {adminUsername}")
@@ -66,9 +70,9 @@ async def submit_enterprise_settlement(
     async with engine.begin() as conn:
         try:
             # ========== 1. 唯一性检查 ==========
-            # 检查企业名称是否已存在（排除已注销的企业）
+            # 检查承包商公司名称是否已存在（排除已注销的承包商）
             check_company_name_query = text("""
-                SELECT enterprise_id FROM enterprise_info 
+                SELECT contractor_id FROM contractor_info 
                 WHERE company_name = :company_name 
                 AND is_deleted = false 
                 AND business_status != '已注销'
@@ -80,12 +84,12 @@ async def submit_enterprise_settlement(
             if existing:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="该企业名称已被使用，不允许重复注册"
+                    detail="该供应商名称已被使用，不允许重复注册"
                 )
             
-            # 检查营业执照编号是否已存在（排除已注销的企业）
+            # 检查营业执照编号是否已存在（排除已注销的承包商）
             check_license_number_query = text("""
-                SELECT enterprise_id FROM enterprise_info 
+                SELECT contractor_id FROM contractor_info 
                 WHERE license_number = :license_number 
                 AND is_deleted = false 
                 AND business_status != '已注销'
@@ -152,9 +156,9 @@ async def submit_enterprise_settlement(
             # ========== 2. 处理文件上传 ==========
             # 这里可以保存文件到服务器，暂时只保存路径
             # 实际项目中应该保存文件并返回文件路径
-            license_file_path = f"uploads/enterprise/{datetime.now().strftime('%Y%m%d')}/{licenseFile.filename}"
+            license_file_path = f"uploads/contractor/{datetime.now().strftime('%Y%m%d')}/{licenseFile.filename}"
             
-            # ========== 3. 创建enterprise_info表记录 ==========
+            # ========== 3. 创建contractor_info表记录 ==========
             # 处理日期格式
             establish_date_value = None
             if establishDate:
@@ -172,24 +176,25 @@ async def submit_enterprise_settlement(
                 except ValueError:
                     pass  # 如果转换失败，设为None
             
-            insert_enterprise_info_query = text("""
-                INSERT INTO enterprise_info (
-                    license_file, license_number, company_name, company_address, legal_person,
+            insert_contractor_info_query = text("""
+                INSERT INTO contractor_info (
+                    license_file, license_number, company_name, company_type, company_address, legal_person,
                     establish_date, registered_capital, applicant_name,
                     business_status,
                     created_at, updated_at
                 ) VALUES (
-                    :license_file, :license_number, :company_name, :company_address, :legal_person,
+                    :license_file, :license_number, :company_name, :company_type, :company_address, :legal_person,
                     :establish_date, :registered_capital, :applicant_name,
                     :business_status,
                     :created_at, :updated_at
-                ) RETURNING enterprise_id
+                ) RETURNING contractor_id
             """)
             
-            result = await conn.execute(insert_enterprise_info_query, {
+            result = await conn.execute(insert_contractor_info_query, {
                 "license_file": license_file_path,
                 "license_number": licenseNumber.strip(),
                 "company_name": companyName,
+                "company_type": companyType,
                 "company_address": companyAddress.strip(),
                 "legal_person": legalPerson,
                 "establish_date": establish_date_value,
@@ -200,9 +205,9 @@ async def submit_enterprise_settlement(
                 "updated_at": datetime.now()
             })
             
-            enterprise_id = result.fetchone()[0]
+            contractor_id = result.fetchone()[0]
             
-            # ========== 4. 创建users表记录（包含企业用户信息） ==========
+            # ========== 4. 创建users表记录（包含承包商用户信息） ==========
             password_hash = pwd.get_password_hash(adminPassword)
             
             insert_user_query = text("""
@@ -210,13 +215,13 @@ async def submit_enterprise_settlement(
                     username, password_hash, user_type, phone, email,
                     user_level, audit_status, temp_token,
                     name_str, role_type, role_level, user_status,
-                    enterprise_staff_id,
+                    contractor_staff_id,
                     created_at, updated_at
                 ) VALUES (
                     :username, :password_hash, :user_type, :phone, :email,
                     :user_level, :audit_status, :temp_token,
                     :name_str, :role_type, :role_level, :user_status,
-                    :enterprise_staff_id,
+                    :contractor_staff_id,
                     :created_at, :updated_at
                 ) RETURNING user_id
             """)
@@ -224,7 +229,7 @@ async def submit_enterprise_settlement(
             result = await conn.execute(insert_user_query, {
                 "username": adminUsername,
                 "password_hash": password_hash,
-                "user_type": "enterprise",
+                "user_type": "contractor",
                 "phone": adminPhone,
                 "email": adminEmail,
                 "user_level": -1,  # 待审核状态
@@ -232,9 +237,9 @@ async def submit_enterprise_settlement(
                 "temp_token": tempToken,
                 "name_str": adminUsername,  # 姓名
                 "role_type": "admin",  # 管理员角色
-                "role_level": 1,  # 企业管理员（根据create_tables.sql注释：1 企业管理员）
+                "role_level": 3,  # 承包商管理员（根据create_tables.sql注释：3 承包商管理员）
                 "user_status": 2,  # 待审核（根据create_tables.sql注释：2 待审核）
-                "enterprise_staff_id": enterprise_id,  # 直接赋值为enterprise_info表的enterprise_id
+                "contractor_staff_id": contractor_id,  # 直接赋值为contractor_info表的contractor_id
                 "created_at": datetime.now(),
                 "updated_at": datetime.now()
             })
@@ -246,16 +251,16 @@ async def submit_enterprise_settlement(
             update_user_sys_id_query = text("UPDATE users SET sys_only_id = :user_id WHERE user_id = :user_id")
             await conn.execute(update_user_sys_id_query, {"user_id": user_id})
             
-            print(f"✅ 企业入驻申请提交成功")
-            print(f"   企业ID: {enterprise_id}")
+            print(f"✅ 承包商入驻申请提交成功")
+            print(f"   承包商ID: {contractor_id}")
             print(f"   用户ID: {user_id}")
             print(f"   用户名: {adminUsername}")
-            print(f"   企业名称: {companyName}")
+            print(f"   公司名称: {companyName}")
             print(f"   审核状态: 待审核 (audit_status=3, business_status=待审核)")
             
             return {
                 "message": "申请提交成功，等待审核",
-                "enterprise_id": enterprise_id,
+                "contractor_id": contractor_id,
                 "user_id": user_id,
                 "application_status": "pending"
             }
@@ -263,7 +268,7 @@ async def submit_enterprise_settlement(
         except HTTPException:
             raise
         except Exception as e:
-            print(f"❌ 企业入驻申请失败: {str(e)}")
+            print(f"❌ 承包商入驻申请失败: {str(e)}")
             import traceback
             traceback.print_exc()
             raise HTTPException(
@@ -271,57 +276,3 @@ async def submit_enterprise_settlement(
                 detail=f"提交申请失败: {str(e)}"
             )
 
-
-# 企业入驻信息修改
-@router.post("/settlement/enterprise/modify")
-async def modify_enterprise_settlement(
-    enterprise_id: int = Form(...),
-    companyName: str = Form(...),
-    legalPerson: Optional[str] = Form(None),
-    establishDate: Optional[str] = Form(None),
-    registeredCapital: Optional[str] = Form(None),
-    applicantName: Optional[str] = Form(None),
-    engine: AsyncEngine = Depends(get_engine)
-):
-    """
-    修改企业入驻信息
-    """
-    print("\n" + "=" * 60)
-    print("【企业入驻信息修改】")
-    print(f"修改时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"企业ID: {enterprise_id}")
-    print(f"企业名称: {companyName}")
-    print(f"法人: {legalPerson}")
-    print(f"成立日期: {establishDate}")
-    print(f"注册资本: {registeredCapital}")
-    print(f"申请人: {applicantName}")
-    print("=" * 60 + "\n")
-    return {
-        "message": "修改成功",
-        "enterprise_id": enterprise_id,
-        "companyName": companyName,
-        "legalPerson": legalPerson,
-        "establishDate": establishDate,
-        "registeredCapital": registeredCapital,
-        "applicantName": applicantName
-    }
-
-
-# 企业入驻信息查询
-@router.get("/settlement/enterprise/query")
-async def query_enterprise_settlement(
-    enterprise_id: int = Form(...),
-    engine: AsyncEngine = Depends(get_engine)
-):
-    """
-    查询企业入驻信息
-    """
-    print("\n" + "=" * 60)
-    print("【企业入驻信息查询】")
-    print(f"查询时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"企业ID: {enterprise_id}")
-    print("=" * 60 + "\n")
-    return {
-        "message": "查询成功",
-        "enterprise_id": enterprise_id
-    }

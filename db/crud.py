@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List
 from sqlalchemy import select, func
-from sqlalchemy.orm import selectinload  # 添加这个导入
+# selectinload 已不再使用，因为enterprise_user和contractor_user表已删除
 
 from db.models import *
 from db.connection import get_session
@@ -9,20 +9,38 @@ from api import model as api
 
 
 async def get_user(engine, username, user_type: str=None) -> User|None:
-    if user_type == api.UserType.contractor:
-        statement = select(User).where(User.username == username).options(selectinload(User.contractor_user))
-    elif user_type == api.UserType.enterprise:
-        statement = select(User).where(User.username == username).options(selectinload(User.enterprise_user))
-    else:
-        statement = select(User).where(User.username == username)
+    # 不再加载已删除的enterprise_user和contractor_user关系
+    statement = select(User).where(User.username == username)
     async with get_session(engine) as session:
-        result = await session.exec(statement)
-        try :
-            user = result.first()[0]
-        except Exception:
-            print("no such user!")
+        try:
+            result = await session.exec(statement)
+            # 对于 SQLModel，使用 first() 获取第一个结果
+            row = result.first()
+            if row is None:
+                return None
+            
+            # 处理 Row 对象：如果返回的是 Row，提取第一个元素（User对象）
+            if hasattr(row, '__getitem__') and not isinstance(row, User):
+                # 这是一个 Row 对象，提取 User 对象
+                user = row[0] if len(row) > 0 else None
+            else:
+                # 直接是 User 对象
+                user = row
+            
+            if user is None:
+                return None
+            
+            # 确保返回的是 User 对象
+            if isinstance(user, User):
+                return user
+            else:
+                print(f"⚠️ 警告: get_user 返回的不是 User 对象，类型: {type(user)}")
+                return None
+        except Exception as e:
+            print(f"no such user! Error: {e}")
+            import traceback
+            traceback.print_exc()
             return None
-        return user
 
 async def get_user_count(engine) -> int:
     """获取User表中的记录数量"""
@@ -34,28 +52,45 @@ async def get_user_count(engine) -> int:
 
 
 async def create_enterprise_user(engine, enterprise_user: api.EnterpriseUser, user: api.User|None=None):
-    enterprise_user_db = EnterpriseUser(
-        enterprise_id = enterprise_user.enterprise_id,
-        name = enterprise_user.name,
-        phone = enterprise_user.phone,
-        email = enterprise_user.email,
-        position = enterprise_user.position,
-        role_type = enterprise_user.role_type,
-        approval_level = enterprise_user.approval_level,
-        status = enterprise_user.status
-    )
+    """
+    创建企业用户（不再使用enterprise_user表，直接写入users表）
+    """
     async with get_session(engine) as session:
-        session.add(enterprise_user_db)
         if user is not None:
+            # 如果提供了user信息，创建users表记录，包含企业用户信息
+            user_db = User(
+                username=user.username,
+                password_hash=user.password_hash,
+                user_type=user.user_type,
+                phone=enterprise_user.phone,
+                email=enterprise_user.email,
+                name_str=enterprise_user.name,
+                role_type=enterprise_user.role_type,
+                role_level=enterprise_user.approval_level,  # approval_level映射到role_level
+                user_status=enterprise_user.status,
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+            session.add(user_db)
             await session.flush()
-            await session.refresh(enterprise_user_db)
-            await create_user(engine, user.username, user.password_hash, user_type=user.user_type,
-                              enterprise_staff_id=enterprise_user_db.user_id, session=session)
-
-        await session.commit()
-        await session.refresh(enterprise_user_db)
-
-    return enterprise_user_db
+            await session.refresh(user_db)
+            await session.commit()
+            return user_db
+        else:
+            # 如果没有提供user信息，只返回企业用户信息（不创建账号）
+            # 这种情况下，返回一个包含企业用户信息的字典或对象
+            # 注意：由于不再使用EnterpriseUser表，这里需要返回一个兼容的对象
+            from api.model import EnterpriseUser as EnterpriseUserModel
+            return EnterpriseUserModel(
+                enterprise_id=enterprise_user.enterprise_id,
+                name=enterprise_user.name,
+                phone=enterprise_user.phone,
+                email=enterprise_user.email,
+                position=enterprise_user.position,
+                role_type=enterprise_user.role_type,
+                approval_level=enterprise_user.approval_level,
+                status=enterprise_user.status
+            )
 
 async def create_user(engine, username: str, password_hash: str, user_type: str,
                              enterprise_staff_id: int = None, contractor_staff_id: int = None, session=None) -> User:

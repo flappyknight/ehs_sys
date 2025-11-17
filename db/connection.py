@@ -3,6 +3,7 @@ from typing import Any, AsyncGenerator
 from sqlmodel.ext.asyncio.session import AsyncSession
 from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
+from fastapi import HTTPException
 from config import settings
 
 
@@ -28,6 +29,10 @@ async def get_session(engine) -> AsyncGenerator[AsyncSession, Any]:
     async with AsyncSession(engine) as session:
         try:
             yield session
+        except HTTPException:
+            # HTTPException应该直接传播，不要包装
+            await session.rollback()
+            raise
         except Exception as e:
             await session.rollback()
             raise SessionCreatError(str(e))

@@ -22,12 +22,34 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 async def authenticate_user(engine, username: str, password: str):
     """验证用户身份"""
-    user = await crud.get_user(engine, username)
-    if not user:
+    try:
+        user = await crud.get_user(engine, username)
+        if not user:
+            print(f"❌ 用户 {username} 不存在")
+            return False
+        # 检查password_hash属性是否存在
+        if not hasattr(user, 'password_hash') or user.password_hash is None:
+            print(f"❌ 用户 {username} 没有password_hash字段")
+            return False
+        print(f"🔍 验证密码: 输入密码长度={len(password)}, 哈希长度={len(user.password_hash) if user.password_hash else 0}")
+        print(f"🔍 密码哈希前20字符: {user.password_hash[:20] if user.password_hash else 'None'}...")
+        verify_result = pwd.verify_password(password, user.password_hash)
+        print(f"🔍 密码验证结果: {verify_result}")
+        if not verify_result:
+            print(f"❌ 密码验证失败")
+            return False
+        print(f"✅ 密码验证成功")
+        return user
+    except AttributeError as e:
+        print(f"❌ 访问用户属性时出错: {e}")
+        import traceback
+        traceback.print_exc()
         return False
-    if not pwd.verify_password(password, user.password_hash):
+    except Exception as e:
+        print(f"❌ 验证用户身份时出错: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
         return False
-    return user
 
 
 def create_access_token(data: dict, expires_delta: Union[timedelta, None] = None):

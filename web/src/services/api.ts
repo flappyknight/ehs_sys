@@ -54,6 +54,33 @@ export interface ContractorListItem {
   project_count: number
 }
 
+// 承包商信息（用于审批页面）
+export interface ContractorInfo {
+  contractor_id: number
+  license_file: string
+  license_number?: string | null
+  company_name: string
+  company_type?: string | null
+  company_address?: string | null
+  legal_person?: string | null
+  establish_date?: string | null
+  registered_capital?: number | null
+  applicant_name?: string | null
+  business_status: string
+  created_at?: string | null
+  updated_at?: string | null
+  admins?: AdminInfo[]
+}
+
+// 承包商列表响应
+export interface ContractorListResponse {
+  items: ContractorInfo[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
 // 添加厂区相关的类型定义
 export interface AreaListItem {
   area_id: number
@@ -74,6 +101,107 @@ export interface EnterpriseListItem {
   company_id: number
   name: string
   type: string
+}
+
+// 管理员信息
+export interface AdminInfo {
+  user_id: number
+  username: string
+  name: string
+  phone?: string | null
+  email?: string | null
+  user_status?: number | null
+}
+
+// 企业信息（用于审批页面）
+export interface EnterpriseInfo {
+  enterprise_id: number
+  license_file: string
+  license_number?: string | null
+  company_name: string
+  company_type?: string | null
+  company_address?: string | null
+  legal_person?: string | null
+  establish_date?: string | null
+  registered_capital?: number | null
+  applicant_name?: string | null
+  business_status: string
+  parent_enterprise_id?: number | null
+  created_at?: string | null
+  updated_at?: string | null
+  admins?: AdminInfo[]
+}
+
+// 企业列表响应
+export interface EnterpriseListResponse {
+  items: EnterpriseInfo[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
+// 待审批人员信息
+export interface PendingStaffInfo {
+  user_id: number
+  username: string
+  name: string
+  user_type: string
+  phone?: string | null
+  email?: string | null
+  role_type?: string | null
+  role_level?: number | null
+  user_status: number
+  enterprise_staff_id?: number | null
+  contractor_staff_id?: number | null
+  company_name?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+// 待审批人员列表响应
+export interface PendingStaffListResponse {
+  items: PendingStaffInfo[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
+// 用户信息（完整版，包含企业和供应商信息）
+export interface UserInfo {
+  user_id: number
+  username: string
+  name: string
+  user_type: string
+  phone?: string | null
+  email?: string | null
+  role_type?: string | null
+  role_level?: number | null
+  user_status: number
+  enterprise_staff_id?: number | null
+  contractor_staff_id?: number | null
+  enterprise_name?: string | null
+  enterprise_license_number?: string | null
+  contractor_name?: string | null
+  contractor_license_number?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+// 用户列表响应
+export interface UserListResponse {
+  items: UserInfo[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
+// 审批企业请求
+export interface ApproveEnterpriseRequest {
+  approved: boolean
+  comment?: string | null
 }
 
 // 添加部门相关的类型定义
@@ -295,6 +423,174 @@ export class ApiService {
   // 获取企业列表（仅管理员）
   async getEnterprises(): Promise<EnterpriseListItem[]> {
     return this.request<EnterpriseListItem[]>('/enterprises/')
+  }
+
+  // 获取企业列表（管理员审批用，支持筛选）
+  async getEnterprisesForApproval(params?: {
+    business_status?: string
+    company_type?: string
+    keyword?: string
+    page?: number
+    page_size?: number
+  }): Promise<EnterpriseListResponse> {
+    const queryParams = new URLSearchParams()
+    if (params?.business_status) queryParams.append('business_status', params.business_status)
+    if (params?.company_type) queryParams.append('company_type', params.company_type)
+    if (params?.keyword) queryParams.append('keyword', params.keyword)
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.page_size) queryParams.append('page_size', params.page_size.toString())
+    
+    const queryString = queryParams.toString()
+    const url = `/admin/enterprises${queryString ? '?' + queryString : ''}`
+    return this.request<EnterpriseListResponse>(url)
+  }
+
+  // 获取企业详情（管理员）
+  async getEnterpriseDetail(enterpriseId: number): Promise<EnterpriseInfo> {
+    return this.request<EnterpriseInfo>(`/admin/enterprises/${enterpriseId}/`)
+  }
+
+  // 审批企业（管理员）
+  async approveEnterprise(
+    enterpriseId: number,
+    approved: boolean,
+    comment?: string,
+    adminApprovals?: Record<number, boolean>
+  ): Promise<{ message: string; enterprise_id: number; business_status: string; comment?: string }> {
+    const queryParams = new URLSearchParams()
+    queryParams.append('approved', approved.toString())
+    if (comment) queryParams.append('comment', comment)
+    if (adminApprovals) {
+      queryParams.append('admin_approvals', JSON.stringify(adminApprovals))
+    }
+    
+    return this.request(`/admin/enterprises/${enterpriseId}/approve/?${queryParams.toString()}`, {
+      method: 'POST',
+    })
+  }
+
+  // ===== 承包商相关接口（管理员审批用） =====
+
+  // 获取承包商列表（管理员审批用，支持筛选）
+  async getContractorsForApproval(params?: {
+    business_status?: string
+    company_type?: string
+    keyword?: string
+    page?: number
+    page_size?: number
+  }): Promise<ContractorListResponse> {
+    const queryParams = new URLSearchParams()
+    if (params?.business_status) queryParams.append('business_status', params.business_status)
+    if (params?.company_type) queryParams.append('company_type', params.company_type)
+    if (params?.keyword) queryParams.append('keyword', params.keyword)
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.page_size) queryParams.append('page_size', params.page_size.toString())
+    
+    const queryString = queryParams.toString()
+    const url = `/admin/contractors${queryString ? '?' + queryString : ''}`
+    return this.request<ContractorListResponse>(url)
+  }
+
+  // 获取承包商详情（管理员）
+  async getContractorDetail(contractorId: number): Promise<ContractorInfo> {
+    return this.request<ContractorInfo>(`/admin/contractors/${contractorId}/`)
+  }
+
+  // 审批承包商（管理员）
+  async approveContractor(
+    contractorId: number,
+    approved: boolean,
+    comment?: string,
+    adminApprovals?: Record<number, boolean>
+  ): Promise<{ message: string; contractor_id: number; business_status: string; comment?: string }> {
+    const queryParams = new URLSearchParams()
+    queryParams.append('approved', approved.toString())
+    if (comment) queryParams.append('comment', comment)
+    if (adminApprovals) {
+      queryParams.append('admin_approvals', JSON.stringify(adminApprovals))
+    }
+    
+    return this.request(`/admin/contractors/${contractorId}/approve/?${queryParams.toString()}`, {
+      method: 'POST',
+    })
+  }
+
+  // ===== 人员审批相关接口（管理员用） =====
+
+  // 获取待审批人员列表（管理员）
+  async getPendingStaff(params?: {
+    user_type?: string
+    keyword?: string
+    page?: number
+    page_size?: number
+  }): Promise<PendingStaffListResponse> {
+    const queryParams = new URLSearchParams()
+    if (params?.user_type) queryParams.append('user_type', params.user_type)
+    if (params?.keyword) queryParams.append('keyword', params.keyword)
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.page_size) queryParams.append('page_size', params.page_size.toString())
+    
+    const queryString = queryParams.toString()
+    const url = `/admin/users/pending${queryString ? '?' + queryString : ''}`
+    return this.request<PendingStaffListResponse>(url)
+  }
+
+  // 审批人员（管理员）
+  async approveStaff(
+    userId: number,
+    approved: boolean,
+    comment?: string
+  ): Promise<{ message: string; user_id: number; user_status: number; comment?: string }> {
+    const queryParams = new URLSearchParams()
+    queryParams.append('approved', approved.toString())
+    if (comment) queryParams.append('comment', comment)
+    
+    return this.request(`/admin/users/${userId}/approve/?${queryParams.toString()}`, {
+      method: 'POST',
+    })
+  }
+
+  // 获取所有用户列表（管理员，支持多种过滤条件）
+  async getAllUsers(params?: {
+    user_type?: string
+    user_status?: number
+    role_level?: number
+    username?: string
+    user_id?: number
+    enterprise_staff_id?: number
+    contractor_staff_id?: number
+    page?: number
+    page_size?: number
+  }): Promise<UserListResponse> {
+    const queryParams = new URLSearchParams()
+    if (params?.user_type) queryParams.append('user_type', params.user_type)
+    if (params?.user_status !== undefined) queryParams.append('user_status', params.user_status.toString())
+    if (params?.role_level !== undefined) queryParams.append('role_level', params.role_level.toString())
+    if (params?.username) queryParams.append('username', params.username)
+    if (params?.user_id) queryParams.append('user_id', params.user_id.toString())
+    if (params?.enterprise_staff_id) queryParams.append('enterprise_staff_id', params.enterprise_staff_id.toString())
+    if (params?.contractor_staff_id) queryParams.append('contractor_staff_id', params.contractor_staff_id.toString())
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.page_size) queryParams.append('page_size', params.page_size.toString())
+    
+    const queryString = queryParams.toString()
+    const url = `/admin/users/all${queryString ? '?' + queryString : ''}`
+    return this.request<UserListResponse>(url)
+  }
+
+  // 更新用户状态（管理员）
+  async updateUserStatus(
+    userId: number,
+    userStatus: number,
+    comment?: string
+  ): Promise<{ message: string; user_id: number; user_status: number; comment?: string }> {
+    const queryParams = new URLSearchParams()
+    queryParams.append('user_status', userStatus.toString())
+    if (comment) queryParams.append('comment', comment)
+    
+    return this.request(`/admin/users/${userId}/status/?${queryParams.toString()}`, {
+      method: 'PUT',
+    })
   }
 
   // ===== 部门相关接口 =====

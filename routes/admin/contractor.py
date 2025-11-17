@@ -4,9 +4,11 @@ Contractor management routes for system admin
 """
 from typing import List, Optional
 from datetime import datetime
+import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import select, and_
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.model import (
     ContractorListItem,
@@ -18,7 +20,8 @@ from api.model import (
 from core import password as pwd
 from db import crud
 from db.models import ContractorInfo as ContractorDB, ContractorUser as ContractorUserDB
-from routes.dependencies import get_current_user
+from routes.dependencies import get_current_user, get_engine
+from db.connection import get_session
 
 router = APIRouter()
 
@@ -51,73 +54,107 @@ async def create_contractor(contractor: ContractorInfo):
 
 @router.get("/")
 async def get_contractors(
-    status: Optional[str] = Query(default=None, description="状态筛选: pending(待审批), approved(已批准), rejected(已拒绝)"),
+    business_status: Optional[str] = Query(default=None, description="状态筛选: 待审核, 续存, 审核不通过, 已注销"),
     company_type: Optional[str] = Query(default=None, description="公司类型筛选"),
     keyword: Optional[str] = Query(default=None, description="搜索关键词（公司名称）"),
     page: int = Query(default=1, ge=1, description="页码"),
     page_size: int = Query(default=20, ge=1, le=100, description="每页数量"),
-    user: User = Depends(verify_admin)
+    user: User = Depends(verify_admin),
+    engine = Depends(get_engine)
 ) -> dict:
     """
     获取承包商列表
     
     系统管理员可以查看所有承包商，支持按状态、类型筛选和搜索
     """
-    from main import app
-    
     try:
-        async with app.state.engine.begin() as conn:
-            # 构建查询
-            query = select(ContractorDB)
-            
-            # 添加筛选条件
-            conditions = []
-            if status:
-                conditions.append(ContractorDB.status == status)
+        async with get_session(engine) as session:
+            # 构建筛选条件
+            conditions = [ContractorDB.is_deleted == False]
+            if business_status:
+                conditions.append(ContractorDB.business_status == business_status)
             if company_type:
                 conditions.append(ContractorDB.company_type == company_type)
             if keyword:
                 conditions.append(ContractorDB.company_name.contains(keyword))
             
-            if conditions:
-                query = query.where(and_(*conditions))
-            
             # 计算总数
-            count_result = await conn.execute(query)
-            total = len(count_result.all())
+            from sqlalchemy import func
+            count_query = select(func.count(ContractorDB.contractor_id)).where(and_(*conditions))
+            count_result = await session.exec(count_query)
+            total = count_result.one()
             
             # 分页查询
+            query = select(ContractorDB).where(and_(*conditions))
+            query = query.order_by(ContractorDB.created_at.desc())
             query = query.offset((page - 1) * page_size).limit(page_size)
-            result = await conn.execute(query)
-            contractors = result.scalars().all()
+            result = await session.exec(query)
+            contractors = result.all()
             
             # 转换为响应格式
             items = []
             for contractor in contractors:
-                # 统计项目数量
-                from db.models import Project
-                project_query = select(Project).where(Project.contractor_id == contractor.contractor_id)
-                project_result = await conn.execute(project_query)
-                project_count = len(project_result.all())
+                # 处理 Row 对象
+                if hasattr(contractor, '__getitem__') and not isinstance(contractor, ContractorDB):
+                    contractor = contractor[0] if len(contractor) > 0 else None
+                    if contractor is None:
+                        continue
                 
-                items.append(
-                    ContractorListItem(
-                        contractor_id=contractor.contractor_id,
-                        company_name=contractor.company_name,
-                        company_type=contractor.company_type,
-                        legal_person=contractor.legal_person,
-                        establish_date=str(contractor.establish_date),
-                        status=getattr(contractor, 'status', 'approved'),
-                        project_count=project_count,
-                        created_at=contractor.created_at.isoformat() if hasattr(contractor, 'created_at') else None
+                # 查询供应商管理员（user_type='contractor' 且 role_level=3 或 0）
+                # 兼容旧数据：role_level=0 也视为供应商管理员
+                from db.models import User as UserDB
+                from sqlmodel import or_
+                admin_query = select(UserDB).where(
+                    and_(
+                        UserDB.contractor_staff_id == contractor.contractor_id,
+                        UserDB.user_type == "contractor",
+                        or_(UserDB.role_level == 3, UserDB.role_level == 0)
                     )
                 )
+                admin_result = await session.exec(admin_query)
+                admins = admin_result.all()
+                
+                # 处理管理员数据
+                admin_list = []
+                for admin in admins:
+                    # 处理 Row 对象
+                    if hasattr(admin, '__getitem__') and not isinstance(admin, UserDB):
+                        admin = admin[0] if len(admin) > 0 else None
+                        if admin is None:
+                            continue
+                    
+                    admin_list.append({
+                        "user_id": admin.user_id,
+                        "username": admin.username,
+                        "name": admin.name_str or admin.relay_name or admin.username,
+                        "phone": admin.phone,
+                        "email": admin.email,
+                        "user_status": admin.user_status,
+                    })
+                
+                items.append({
+                    "contractor_id": contractor.contractor_id,
+                    "license_file": contractor.license_file,
+                    "license_number": contractor.license_number,
+                    "company_name": contractor.company_name,
+                    "company_type": contractor.company_type,
+                    "company_address": contractor.company_address,
+                    "legal_person": contractor.legal_person,
+                    "establish_date": str(contractor.establish_date) if contractor.establish_date else None,
+                    "registered_capital": float(contractor.registered_capital) if contractor.registered_capital else None,
+                    "applicant_name": contractor.applicant_name,
+                    "business_status": contractor.business_status,
+                    "created_at": contractor.created_at.isoformat() if contractor.created_at else None,
+                    "updated_at": contractor.updated_at.isoformat() if contractor.updated_at else None,
+                    "admins": admin_list,  # 添加管理员列表
+                })
             
             return {
+                "items": items,
                 "total": total,
                 "page": page,
                 "page_size": page_size,
-                "items": items
+                "total_pages": (total + page_size - 1) // page_size
             }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"获取承包商列表失败: {str(e)}")
@@ -126,51 +163,54 @@ async def get_contractors(
 @router.get("/{contractor_id}/")
 async def get_contractor_detail(
     contractor_id: int,
-    user: User = Depends(verify_admin)
-):
+    user: User = Depends(verify_admin),
+    engine = Depends(get_engine)
+) -> ContractorInfo:
     """
     获取承包商详情
     
-    查看承包商的详细信息，包括项目数、员工数等统计信息
+    系统管理员可以查看单个承包商的详细信息
     """
-    from main import app
-    
     try:
-        async with app.state.engine.begin() as conn:
-            # 查询承包商信息
-            query = select(ContractorDB).where(ContractorDB.contractor_id == contractor_id)
-            result = await conn.execute(query)
-            contractor = result.scalar_one_or_none()
+        async with get_session(engine) as session:
+            query = select(ContractorDB).where(
+                and_(
+                    ContractorDB.contractor_id == contractor_id,
+                    ContractorDB.is_deleted == False
+                )
+            )
+            result = await session.exec(query)
+            contractor = result.first()
             
             if not contractor:
                 raise HTTPException(status_code=404, detail="承包商不存在")
             
-            # 统计项目数量
-            from db.models import Project
-            project_query = select(Project).where(Project.contractor_id == contractor_id)
-            project_result = await conn.execute(project_query)
-            project_count = len(project_result.all())
+            # 处理 Row 对象
+            if hasattr(contractor, '__getitem__') and not isinstance(contractor, ContractorDB):
+                contractor = contractor[0] if len(contractor) > 0 else None
+                if contractor is None:
+                    raise HTTPException(status_code=404, detail="承包商不存在")
             
-            # 统计员工数量
-            staff_query = select(ContractorUserDB).where(ContractorUserDB.contractor_id == contractor_id)
-            staff_result = await conn.execute(staff_query)
-            staff_count = len(staff_result.all())
-            
-            return {
-                "contractor_id": contractor.contractor_id,
-                "company_name": contractor.company_name,
-                "company_type": contractor.company_type,
-                "legal_person": contractor.legal_person,
-                "establish_date": str(contractor.establish_date),
-                "business_license": getattr(contractor, 'business_license', None),
-                "contact_person": getattr(contractor, 'contact_person', None),
-                "contact_phone": getattr(contractor, 'contact_phone', None),
-                "status": getattr(contractor, 'status', 'approved'),
-                "project_count": project_count,
-                "staff_count": staff_count,
-                "created_at": contractor.created_at.isoformat() if hasattr(contractor, 'created_at') else None,
-                "updated_at": contractor.updated_at.isoformat() if hasattr(contractor, 'updated_at') else None
-            }
+            return ContractorInfo(
+                contractor_id=contractor.contractor_id,
+                license_file=contractor.license_file,
+                license_number=contractor.license_number,
+                company_name=contractor.company_name,
+                company_type=contractor.company_type,
+                company_address=contractor.company_address,
+                legal_person=contractor.legal_person,
+                establish_date=str(contractor.establish_date) if contractor.establish_date else None,
+                registered_capital=float(contractor.registered_capital) if contractor.registered_capital else None,
+                applicant_name=contractor.applicant_name,
+                business_status=contractor.business_status,
+                is_deleted=contractor.is_deleted,
+                active_enterprise_ids=contractor.active_enterprise_ids if hasattr(contractor, 'active_enterprise_ids') else [],
+                inactive_enterprise_ids=contractor.inactive_enterprise_ids if hasattr(contractor, 'inactive_enterprise_ids') else [],
+                cooperation_detail_log=contractor.cooperation_detail_log if hasattr(contractor, 'cooperation_detail_log') else [],
+                modification_log=contractor.modification_log if hasattr(contractor, 'modification_log') else [],
+                created_at=contractor.created_at.isoformat() if contractor.created_at else None,
+                updated_at=contractor.updated_at.isoformat() if contractor.updated_at else None,
+            )
     except HTTPException:
         raise
     except Exception as e:
@@ -286,41 +326,161 @@ async def delete_contractor(contractor_id: int):
 async def approve_contractor(
     contractor_id: int,
     approved: bool = Query(description="true=批准, false=拒绝"),
-    comment: Optional[str] = Query(default=None, description="审批意见")
+    comment: Optional[str] = Query(default=None, description="审批意见"),
+    admin_approvals: Optional[str] = Query(default=None, description="管理员审批状态JSON，格式：{\"user_id\": true/false}"),
+    user: User = Depends(verify_admin),
+    engine = Depends(get_engine)
 ):
     """
     审批承包商注册
     
     系统管理员审批承包商的注册申请
+    审核通过：business_status 从"待审核"改为"续存"
+    审核拒绝：business_status 从"待审核"改为"审核不通过"
     """
-    from main import app
-    
     try:
-        async with app.state.engine.begin() as conn:
+        async with get_session(engine) as session:
             # 查询承包商
-            query = select(ContractorDB).where(ContractorDB.contractor_id == contractor_id)
-            result = await conn.execute(query)
-            contractor = result.scalar_one_or_none()
+            query = select(ContractorDB).where(
+                and_(
+                    ContractorDB.contractor_id == contractor_id,
+                    ContractorDB.is_deleted == False
+                )
+            )
+            result = await session.exec(query)
+            contractor = result.first()
             
             if not contractor:
                 raise HTTPException(status_code=404, detail="承包商不存在")
             
-            # 更新状态
-            if hasattr(contractor, 'status'):
-                contractor.status = 'approved' if approved else 'rejected'
-            if hasattr(contractor, 'approval_comment'):
-                contractor.approval_comment = comment
-            if hasattr(contractor, 'approval_time'):
-                contractor.approval_time = datetime.now()
-            if hasattr(contractor, 'updated_at'):
-                contractor.updated_at = datetime.now()
+            # 处理 Row 对象
+            if hasattr(contractor, '__getitem__') and not isinstance(contractor, ContractorDB):
+                contractor = contractor[0] if len(contractor) > 0 else None
+                if contractor is None:
+                    raise HTTPException(status_code=404, detail="承包商不存在")
             
-            await conn.commit()
+            # 检查当前状态
+            if contractor.business_status != "待审核":
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"承包商当前状态为'{contractor.business_status}'，无法进行审批操作"
+                )
             
-            status_text = "批准" if approved else "拒绝"
+            # 更新管理员状态
+            from db.models import User as UserDB
+            from sqlmodel import or_
+            # 查询所有供应商管理员（兼容旧数据）
+            admin_query = select(UserDB).where(
+                and_(
+                    UserDB.contractor_staff_id == contractor.contractor_id,
+                    UserDB.user_type == "contractor",
+                    or_(UserDB.role_level == 3, UserDB.role_level == 0)
+                )
+            )
+            admin_result = await session.exec(admin_query)
+            admins = admin_result.all()
+            
+            # 解析管理员审批状态
+            admin_approval_dict = {}
+            if admin_approvals:
+                try:
+                    admin_approval_dict = json.loads(admin_approvals)
+                except:
+                    pass
+            
+            # 如果是审核通过，验证至少有一个管理员被选择为"审核通过"
+            if approved:
+                if not admins or len(admins) == 0:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="审核失败：该供应商没有管理员信息，无法审核通过"
+                    )
+                
+                # 检查是否有至少一个管理员被选择为"审核通过"
+                has_approved_admin = False
+                for admin in admins:
+                    # 处理 Row 对象
+                    admin_obj = admin
+                    if hasattr(admin, '__getitem__') and not isinstance(admin, UserDB):
+                        admin_obj = admin[0] if len(admin) > 0 else None
+                        if admin_obj is None:
+                            continue
+                    
+                    # 检查管理员是否被选择为通过
+                    if str(admin_obj.user_id) in admin_approval_dict:
+                        if admin_approval_dict[str(admin_obj.user_id)]:
+                            has_approved_admin = True
+                            break
+                    else:
+                        # 默认通过，也算作已选择通过
+                        has_approved_admin = True
+                        break
+                
+                if not has_approved_admin:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="审核失败：必须至少选择一个管理员为'审核通过'状态才能通过该供应商的审核"
+                    )
+            
+            # 更新供应商状态
+            if approved:
+                contractor.business_status = "续存"
+                status_text = "批准"
+            else:
+                contractor.business_status = "审核不通过"
+                status_text = "拒绝"
+            
+            # 更新修改日志
+            if hasattr(contractor, 'modification_log'):
+                modification_log = contractor.modification_log if contractor.modification_log else []
+                modification_log.append({
+                    "action": "审批",
+                    "operator": user.username,
+                    "operator_type": "系统管理员",
+                    "old_status": "待审核",
+                    "new_status": contractor.business_status,
+                    "comment": comment,
+                    "timestamp": datetime.now().isoformat()
+                })
+                contractor.modification_log = modification_log
+            
+            contractor.updated_at = datetime.now()
+            session.add(contractor)
+            
+            # 更新每个管理员的状态
+            for admin in admins:
+                # 处理 Row 对象
+                if hasattr(admin, '__getitem__') and not isinstance(admin, UserDB):
+                    admin = admin[0] if len(admin) > 0 else None
+                    if admin is None:
+                        continue
+                
+                if approved:
+                    # 审核通过：根据选择项更新状态
+                    # admin_approval_dict中为true的设置为1（通过审核），否则保持原状或设置为0
+                    if str(admin.user_id) in admin_approval_dict:
+                        if admin_approval_dict[str(admin.user_id)]:
+                            admin.user_status = 1  # 通过审核
+                        else:
+                            admin.user_status = 0  # 未通过审核
+                    else:
+                        # 默认通过
+                        admin.user_status = 1
+                else:
+                    # 审核拒绝：所有管理员状态改为3（审核不通过）
+                    admin.user_status = 3
+                
+                admin.updated_at = datetime.now()
+                session.add(admin)
+            
+            await session.commit()
+            await session.refresh(contractor)
+            
             return {
                 "message": f"承包商注册已{status_text}",
-                "status": contractor.status if hasattr(contractor, 'status') else None
+                "contractor_id": contractor.contractor_id,
+                "business_status": contractor.business_status,
+                "comment": comment
             }
     except HTTPException:
         raise

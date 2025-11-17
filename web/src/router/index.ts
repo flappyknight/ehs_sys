@@ -7,6 +7,10 @@ import SettlementChoice from '@/views/SettlementChoice.vue'
 import EnterpriseSettlement from '@/views/EnterpriseSettlement.vue'
 import ContractorSettlement from '@/views/ContractorSettlement.vue'
 import AdminPermissionApply from '@/views/AdminPermissionApply.vue'
+import EnterprisePermissionApply from '@/views/EnterprisePermissionApply.vue'
+import ContractorPermissionApply from '@/views/ContractorPermissionApply.vue'
+import EnterpriseEdit from '@/views/EnterpriseEdit.vue'
+import ContractorEdit from '@/views/ContractorEdit.vue'
 import EnterpriseBind from '@/views/EnterpriseBind.vue'
 import ContractorBind from '@/views/ContractorBind.vue'
 import Dashboard from '@/views/UserDashboard.vue'
@@ -34,7 +38,7 @@ import ContractorCooperation from '@/views/ContractorCooperation.vue'
 import ApprovalManagement from '@/views/ApprovalManagement.vue'
 import ApprovalEnterprise from '@/views/ApprovalEnterprise.vue'
 import ApprovalContractor from '@/views/ApprovalContractor.vue'
-import ApprovalAdmin from '@/views/ApprovalAdmin.vue'
+import ApprovalStaff from '@/views/ApprovalStaff.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -79,6 +83,30 @@ const router = createRouter({
       path: '/admin/permission-apply',
       name: 'AdminPermissionApply',
       component: AdminPermissionApply,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/enterprise/permission-apply',
+      name: 'EnterprisePermissionApply',
+      component: EnterprisePermissionApply,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/enterprise/edit',
+      name: 'EnterpriseEdit',
+      component: EnterpriseEdit,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/contractor/permission-apply',
+      name: 'ContractorPermissionApply',
+      component: ContractorPermissionApply,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/contractor/edit',
+      name: 'ContractorEdit',
+      component: ContractorEdit,
       meta: { requiresAuth: true }
     },
     {
@@ -181,9 +209,9 @@ const router = createRouter({
           component: ApprovalContractor
         },
         {
-          path: 'approval/admin',
-          name: 'ApprovalAdmin',
-          component: ApprovalAdmin
+          path: 'approval/staff',
+          name: 'ApprovalStaff',
+          component: ApprovalStaff
         },
         // 保留旧路由（兼容性）
         {
@@ -227,44 +255,20 @@ function checkUserPermission(user: any): string | null {
   if (!user) return '/login'
 
   const userType = user.user_type
-  const userLevel = user.user_level ?? -1
-  const auditStatus = user.audit_status ?? 1
+  const userStatus = user.user_status ?? 0
 
-  if (userType === 'admin') {
-    // 管理员：先检查user_level
-    if (userLevel === -1 || auditStatus === 1) {
-      // 还没有通过审批或还未提交审核，需要申请权限
+  // 检查user_status是否为1（审核通过）
+  if (userStatus === 1) {
+    // 审核通过，允许访问
+    return null
+  } else {
+    // user_status不为1，需要跳转到权限申请页面
+    if (userType === 'admin') {
       return '/admin/permission-apply'
-    } else if (auditStatus === 3) {
-      // 待审核状态，不允许访问主页面
-      return '/login'
-    } else if (auditStatus === 2) {
-      // 审核通过，允许访问
-      return null
-    }
-  } else if (userType === 'enterprise') {
-    // 企业用户：检查audit_status
-    if (auditStatus === 1) {
-      // 还没有绑定企业，需要绑定
-      return '/enterprise/bind'
-    } else if (auditStatus === 3) {
-      // 待审核状态，不允许访问主页面
-      return '/login'
-    } else if (auditStatus === 2) {
-      // 审核通过，允许访问
-      return null
-    }
-  } else if (userType === 'contractor') {
-    // 承包商用户：检查audit_status
-    if (auditStatus === 1) {
-      // 还没有绑定供应商，需要绑定
-      return '/contractor/bind'
-    } else if (auditStatus === 3) {
-      // 待审核状态，不允许访问主页面
-      return '/login'
-    } else if (auditStatus === 2) {
-      // 审核通过，允许访问
-      return null
+    } else if (userType === 'enterprise') {
+      return '/enterprise/permission-apply'
+    } else if (userType === 'contractor') {
+      return '/contractor/permission-apply'
     }
   }
 
@@ -294,6 +298,10 @@ router.beforeEach(async (to, from, next) => {
     // 如果当前页面是信息填报页面，允许访问（即使状态不符合）
     const isInfoPage = [
       '/admin/permission-apply',
+      '/enterprise/permission-apply',
+      '/enterprise/edit',
+      '/contractor/permission-apply',
+      '/contractor/edit',
       '/enterprise/bind',
       '/contractor/bind'
     ].includes(to.path)

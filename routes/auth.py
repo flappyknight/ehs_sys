@@ -29,95 +29,83 @@ async def login_for_access_token(
     """用户登录获取访问令牌 - 包含权限验证逻辑"""
     from main import app  # 延迟导入避免循环依赖
     
-    # 打印登录数据
-    print("=" * 50)
-    print("【登录请求】")
-    print(f"用户名: {form_data.username}")
-    print(f"密码: {'*' * len(form_data.password)}")  # 密码不明文打印
-    print(f"登录时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 50)
-    
-    user = await authenticate_user(app.state.engine, form_data.username, form_data.password)
-    if not user:
-        print(f"❌ 登录失败: 用户名或密码错误")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    print(f"✅ 登录成功: 用户类型={user.user_type}, user_level={user.user_level}, audit_status={user.audit_status}")
-    
-    # 权限验证逻辑
-    redirect_to = None
-    message = None
-    
-    if user.user_type == "admin":
-        # 管理员：先检查user_level
-        if user.user_level == -1:
-            # 还没有通过审批，跳转到权限申请页面
-            redirect_to = "/admin/permission-apply"
-            message = "请先提交权限申请信息"
+    try:
+        # 打印登录数据
+        print("=" * 50)
+        print("【登录请求】")
+        print(f"用户名: {form_data.username}")
+        print(f"密码: {'*' * len(form_data.password)}")  # 密码不明文打印
+        print(f"登录时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print("=" * 50)
+        
+        # 先检查用户是否存在
+        from db import crud
+        user_check = await crud.get_user(app.state.engine, form_data.username)
+        if not user_check:
+            print(f"❌ 登录失败: 用户不存在")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="用户不存在，请先注册",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # 验证用户名和密码
+        user = await authenticate_user(app.state.engine, form_data.username, form_data.password)
+        if not user:
+            print(f"❌ 登录失败: 用户名或密码错误")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="用户名或密码错误",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        print(f"✅ 登录成功: 用户类型={user.user_type}, user_status={user.user_status}")
+        
+        # 权限验证逻辑 - 根据user_status字段判断
+        redirect_to = None
+        message = None
+        
+        # 检查user_status是否为1（审核通过）
+        if user.user_status == 1:
+            # 审核通过，允许进入系统
+            redirect_to = "/dashboard"
         else:
-            # 已经提交了申请，检查audit_status
-            if user.audit_status == 1:
-                # 还未提交审核，跳转到权限申请页面
+            # user_status不为1，需要跳转到权限申请页面
+            if user.user_type == "admin":
                 redirect_to = "/admin/permission-apply"
                 message = "请先提交权限申请信息"
-            elif user.audit_status == 2:
-                # 审核通过，可以进入主页面
-                redirect_to = "/dashboard"
-            elif user.audit_status == 3:
-                # 待审核状态，提示等待审核
-                redirect_to = "/login"
-                message = "您的权限申请正在审核中，请耐心等待"
+            elif user.user_type == "enterprise":
+                redirect_to = "/enterprise/permission-apply"
+                message = "请先完成权限申请"
+            elif user.user_type == "contractor":
+                redirect_to = "/contractor/permission-apply"
+                message = "请先完成权限申请"
             else:
-                redirect_to = "/dashboard"
-    
-    elif user.user_type == "enterprise":
-        # 企业用户：检查audit_status
-        if user.audit_status == 1:
-            # 还没有绑定企业，跳转到绑定企业页面
-            redirect_to = "/enterprise/bind"
-            message = "请先绑定企业信息"
-        elif user.audit_status == 2:
-            # 审核通过，可以进入主页面
-            redirect_to = "/dashboard"
-        elif user.audit_status == 3:
-            # 待审核状态，提示等待审核
-            redirect_to = "/login"
-            message = "您的企业信息正在审核中，请耐心等待"
-        else:
-            redirect_to = "/dashboard"
-    
-    elif user.user_type == "contractor":
-        # 承包商用户：检查audit_status
-        if user.audit_status == 1:
-            # 还没有绑定供应商，跳转到绑定供应商页面
-            redirect_to = "/contractor/bind"
-            message = "请先绑定供应商信息"
-        elif user.audit_status == 2:
-            # 审核通过，可以进入主页面
-            redirect_to = "/dashboard"
-        elif user.audit_status == 3:
-            # 待审核状态，提示等待审核
-            redirect_to = "/login"
-            message = "您的供应商信息正在审核中，请耐心等待"
-        else:
-            redirect_to = "/dashboard"
-    
-    access_token_expires = settings.access_token_expire_minutes
-    access_token = create_access_token(
-        data={"sub": user.username, "user_type": user.user_type}, 
-        expires_delta=access_token_expires
-    )
-    
-    return Token(
-        access_token=access_token, 
-        token_type="bearer",
-        redirect_to=redirect_to,
-        message=message
-    )
+                redirect_to = "/login"
+                message = "未知用户类型"
+        
+        access_token_expires = settings.access_token_expire_minutes
+        access_token = create_access_token(
+            data={"sub": user.username, "user_type": user.user_type}, 
+            expires_delta=access_token_expires
+        )
+        
+        return Token(
+            access_token=access_token, 
+            token_type="bearer",
+            redirect_to=redirect_to,
+            message=message
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 登录过程发生错误: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"登录失败: {str(e)}"
+        )
 
 
 @router.get("/users/me/")
@@ -201,4 +189,3 @@ async def logout():
 async def test(user: User = Depends(get_current_user)):
     """测试接口"""
     return {"hello": "world"}
-

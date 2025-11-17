@@ -53,9 +53,11 @@ class User(BaseModel):
     email: Optional[str] = None
     user_level: Optional[int] = None
     audit_status: Optional[int] = None
+    user_status: Optional[int] = None  # 用户状态：0未通过审核，1通过审核，2待审核，3审核不通过
     temp_token: Optional[str] = None
     relay_name: Optional[str] = None
     sys_only_id: Optional[int] = None
+    is_deleted: bool = False  # 假删除标记
     enterprise_user: Optional["EnterpriseUser"] = None
     contractor_user: Optional["ContractorUser"] = None
 
@@ -82,6 +84,7 @@ class EnterpriseInfo(BaseModel):
     license_file: str
     company_name: str
     company_type: Optional[str] = None
+    company_address: Optional[str] = None
     legal_person: Optional[str] = None
     establish_date: Optional[str] = None
     registered_capital: Optional[float] = None
@@ -101,6 +104,7 @@ class EnterpriseInfoCreate(BaseModel):
     license_file: str
     company_name: str
     company_type: Optional[str] = None
+    company_address: Optional[str] = None
     legal_person: Optional[str] = None
     establish_date: Optional[str] = None
     registered_capital: Optional[float] = None
@@ -113,6 +117,7 @@ class EnterpriseInfoUpdate(BaseModel):
     license_file: Optional[str] = None
     company_name: Optional[str] = None
     company_type: Optional[str] = None
+    company_address: Optional[str] = None
     legal_person: Optional[str] = None
     establish_date: Optional[str] = None
     registered_capital: Optional[float] = None
@@ -125,8 +130,10 @@ class ContractorInfo(BaseModel):
     """承包商信息模型"""
     contractor_id: Optional[int] = None
     license_file: str
+    license_number: Optional[str] = None
     company_name: str
     company_type: Optional[str] = None
+    company_address: Optional[str] = None
     legal_person: Optional[str] = None
     establish_date: Optional[str] = None
     registered_capital: Optional[float] = None
@@ -146,6 +153,7 @@ class ContractorInfoCreate(BaseModel):
     license_file: str
     company_name: str
     company_type: Optional[str] = None
+    company_address: Optional[str] = None
     legal_person: Optional[str] = None
     establish_date: Optional[str] = None
     registered_capital: Optional[float] = None
@@ -157,6 +165,7 @@ class ContractorInfoUpdate(BaseModel):
     license_file: Optional[str] = None
     company_name: Optional[str] = None
     company_type: Optional[str] = None
+    company_address: Optional[str] = None
     legal_person: Optional[str] = None
     establish_date: Optional[str] = None
     registered_capital: Optional[float] = None
