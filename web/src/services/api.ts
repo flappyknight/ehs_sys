@@ -422,6 +422,32 @@ export class ApiService {
     TokenManager.removeToken()
   }
 
+  // 忘记密码 - 发送验证码
+  async forgotPassword(username: string, contact: string): Promise<{ message: string; username: string }> {
+    return this.request<{ message: string; username: string }>('/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ username, contact }),
+    })
+  }
+
+  // 重置密码
+  async resetPassword(
+    username: string,
+    newPassword: string,
+    confirmPassword: string,
+    verificationCode: string
+  ): Promise<{ message: string }> {
+    return this.request<{ message: string }>('/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        username,
+        new_password: newPassword,
+        confirm_password: confirmPassword,
+        verification_code: verificationCode,
+      }),
+    })
+  }
+
   // 获取当前用户信息
   async getCurrentUser(): Promise<User> {
     return this.request<User>('/users/me/')

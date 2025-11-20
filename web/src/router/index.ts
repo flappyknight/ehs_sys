@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/auth'
 import Login from '@/views/UserLogin.vue'
 import Register from '@/views/UserRegister.vue'
 import ForgotPassword from '@/views/ForgotPassword.vue'
+import ResetPassword from '@/views/ResetPassword.vue'
 import SettlementChoice from '@/views/SettlementChoice.vue'
 import EnterpriseSettlement from '@/views/EnterpriseSettlement.vue'
 import ContractorSettlement from '@/views/ContractorSettlement.vue'
@@ -60,6 +61,12 @@ const router = createRouter({
       path: '/forgot-password',
       name: 'ForgotPassword',
       component: ForgotPassword,
+      meta: { requiresGuest: true }
+    },
+    {
+      path: '/reset-password',
+      name: 'ResetPassword',
+      component: ResetPassword,
       meta: { requiresGuest: true }
     },
     {

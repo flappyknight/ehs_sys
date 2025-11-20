@@ -4,12 +4,15 @@ Authentication routes
 """
 from typing import Annotated
 from datetime import datetime
+import random
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, status, Form
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncEngine
 from typing import Optional
+from pydantic import BaseModel
 
 from api.model import Token, User, RegisterRequest
 from config import settings
@@ -19,8 +22,95 @@ from .dependencies import (
     get_current_user,
     get_engine
 )
+from db.models import User as UserDB
+from db.connection import get_session
+from core import password as pwd
 
 router = APIRouter()
+
+# 验证码存储（临时使用内存字典，预留Redis接口）
+# TODO: 替换为Redis存储
+verification_codes: dict[str, dict] = {}  # {username: {"code": str, "expires_at": datetime}}
+
+
+class ForgotPasswordRequest(BaseModel):
+    """忘记密码请求"""
+    username: str  # 用户名
+    contact: str  # 手机号或邮箱
+
+
+class ResetPasswordRequest(BaseModel):
+    """重置密码请求"""
+    username: str
+    new_password: str
+    confirm_password: str
+    verification_code: str
+
+
+def generate_verification_code() -> str:
+    """生成6位随机验证码"""
+    return str(random.randint(100000, 999999))
+
+
+def save_verification_code(username: str, code: str, expires_minutes: int = 10):
+    """保存验证码（临时使用内存，预留Redis接口）"""
+    from datetime import timedelta
+    expires_at = datetime.now() + timedelta(minutes=expires_minutes)
+    verification_codes[username] = {
+        "code": code,
+        "expires_at": expires_at
+    }
+    print(f"📝 验证码已保存到内存: username={username}, code={code}, expires_at={expires_at}")
+    # TODO: 替换为Redis存储
+    # await redis_client.setex(f"verification_code:{username}", expires_minutes * 60, code)
+
+
+def get_verification_code(username: str) -> Optional[str]:
+    """获取验证码（临时使用内存，预留Redis接口）"""
+    if username not in verification_codes:
+        return None
+    
+    code_info = verification_codes[username]
+    if datetime.now() > code_info["expires_at"]:
+        # 验证码已过期，删除
+        del verification_codes[username]
+        return None
+    
+    return code_info["code"]
+    # TODO: 替换为Redis存储
+    # return await redis_client.get(f"verification_code:{username}")
+
+
+def delete_verification_code(username: str):
+    """删除验证码（临时使用内存，预留Redis接口）"""
+    if username in verification_codes:
+        del verification_codes[username]
+    # TODO: 替换为Redis存储
+    # await redis_client.delete(f"verification_code:{username}")
+
+
+def send_verification_code_sms(phone: str, code: str):
+    """发送短信验证码（模拟，预留接口）"""
+    print("=" * 60)
+    print("【模拟发送短信验证码】")
+    print(f"手机号: {phone}")
+    print(f"验证码: {code}")
+    print(f"发送时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("=" * 60)
+    # TODO: 实现真实的短信发送功能
+    # await sms_service.send(phone, f"您的验证码是: {code}")
+
+
+def send_verification_code_email(email: str, code: str):
+    """发送邮件验证码（模拟，预留接口）"""
+    print("=" * 60)
+    print("【模拟发送邮件验证码】")
+    print(f"邮箱: {email}")
+    print(f"验证码: {code}")
+    print(f"发送时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("=" * 60)
+    # TODO: 实现真实的邮件发送功能
+    # await email_service.send(email, "密码重置验证码", f"您的验证码是: {code}")
 
 
 @router.post("/token")
@@ -213,6 +303,187 @@ async def logout():
     """用户登出"""
     # 由于我们使用localStorage管理token，后端不需要做任何操作
     return {"message": "Logged out"}
+
+
+@router.post("/forgot-password")
+async def forgot_password(
+    request: ForgotPasswordRequest,
+    engine: AsyncEngine = Depends(get_engine)
+):
+    """发送密码重置验证码"""
+    from main import app
+    from db import crud
+    
+    try:
+        print("=" * 60)
+        print("【密码找回请求】")
+        print(f"用户名: {request.username}")
+        print(f"联系方式: {request.contact}")
+        print(f"请求时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print("=" * 60)
+        
+        # 先根据用户名查找用户
+        user = await crud.get_user(engine, request.username)
+        
+        if not user:
+            print(f"❌ 密码找回失败: 用户不存在")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="用户名不存在"
+            )
+        
+        # 检查用户是否被删除
+        if user.is_deleted:
+            print(f"❌ 密码找回失败: 用户已被删除")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="用户不存在"
+            )
+        
+        # 验证输入的手机号或邮箱是否与数据库中的匹配
+        is_email = '@' in request.contact
+        if is_email:
+            # 验证邮箱
+            if not user.email or user.email != request.contact:
+                print(f"❌ 密码找回失败: 邮箱不匹配 - 输入: {request.contact}, 数据库: {user.email}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="邮箱或手机不正确"
+                )
+        else:
+            # 验证手机号
+            if not user.phone or user.phone != request.contact:
+                print(f"❌ 密码找回失败: 手机号不匹配 - 输入: {request.contact}, 数据库: {user.phone}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="邮箱或手机不正确"
+                )
+        
+        # 生成验证码
+        code = generate_verification_code()
+        
+        # 保存验证码（10分钟有效期）
+        save_verification_code(user.username, code, expires_minutes=10)
+        
+        # 发送验证码
+        if is_email:
+            send_verification_code_email(request.contact, code)
+        else:
+            send_verification_code_sms(request.contact, code)
+        
+        print(f"✅ 验证码已发送: username={user.username}")
+        
+        return {
+            "message": "验证码已发送",
+            "username": user.username  # 返回用户名，前端需要用于重置密码
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 密码找回过程发生错误: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"发送验证码失败: {str(e)}"
+        )
+
+
+@router.post("/reset-password")
+async def reset_password(
+    request: ResetPasswordRequest,
+    engine: AsyncEngine = Depends(get_engine)
+):
+    """重置密码"""
+    from main import app
+    
+    try:
+        print("=" * 60)
+        print("【密码重置请求】")
+        print(f"用户名: {request.username}")
+        print(f"新密码: {'*' * len(request.new_password)}")
+        print(f"确认密码: {'*' * len(request.confirm_password)}")
+        print(f"验证码: {request.verification_code}")
+        print(f"请求时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print("=" * 60)
+        
+        # 验证新密码和确认密码是否一致
+        if request.new_password != request.confirm_password:
+            print(f"❌ 密码重置失败: 新密码和确认密码不一致")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="新密码和确认密码不一致，请重新输入"
+            )
+        
+        # 验证验证码
+        stored_code = get_verification_code(request.username)
+        if not stored_code:
+            print(f"❌ 密码重置失败: 验证码不存在或已过期")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="验证码不存在或已过期，请重新获取"
+            )
+        
+        if stored_code != request.verification_code:
+            print(f"❌ 密码重置失败: 验证码错误")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="验证码错误，请重新输入"
+            )
+        
+        # 查找用户
+        async with get_session(engine) as session:
+            statement = select(UserDB).where(
+                UserDB.username == request.username,
+                UserDB.is_deleted == False
+            )
+            result = await session.exec(statement)
+            user = result.first()
+            
+            if not user:
+                print(f"❌ 密码重置失败: 用户不存在")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="用户不存在"
+                )
+            
+            # 处理 Row 对象
+            if hasattr(user, '__getitem__') and not isinstance(user, UserDB):
+                user = user[0] if len(user) > 0 else None
+            
+            if not user or not isinstance(user, UserDB):
+                print(f"❌ 密码重置失败: 用户数据异常")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="用户数据异常"
+                )
+            
+            # 更新密码
+            user.password_hash = pwd.get_password_hash(request.new_password)
+            user.updated_at = datetime.now()
+            
+            await session.commit()
+            
+            # 删除验证码
+            delete_verification_code(request.username)
+            
+            print(f"✅ 密码重置成功: username={request.username}")
+            
+            return {
+                "message": "密码重置成功"
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 密码重置过程发生错误: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"密码重置失败: {str(e)}"
+        )
 
 
 @router.get("/test/")

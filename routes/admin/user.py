@@ -688,6 +688,13 @@ async def update_user_status(
                 if user_obj.user_type != "enterprise" or user_obj.enterprise_staff_id != current_user.enterprise_staff_id:
                     raise HTTPException(status_code=403, detail="无权更新此用户状态")
             
+            # 检查用户是否已提交审核申请：如果 user_status 为 null，说明用户还未提交审核申请，不允许操作
+            if user_obj.user_status is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="该用户还未提交审核申请，无法进行审批操作。只有用户主动提交审核申请后，才能进行审批。"
+                )
+            
             # 处理role_level变更（仅企业管理员）
             if current_user.role_level == 1 and role_level is not None and role_level != user_obj.role_level:
                 if role_level not in [1, 2]:
