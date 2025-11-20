@@ -63,6 +63,15 @@ async def submit_enterprise_settlement(
             detail="公司地址为必填项，不能为空"
         )
     
+    # 验证管理员用户名格式
+    import re
+    username_regex = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]{5,}$')
+    if not username_regex.match(adminUsername):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="管理员用户名只能包含英文字母、数字和下划线，至少6个字符，不能以数字开头"
+        )
+    
     async with engine.begin() as conn:
         try:
             # ========== 1. 唯一性检查 ==========

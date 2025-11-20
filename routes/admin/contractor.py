@@ -27,10 +27,37 @@ router = APIRouter()
 
 
 def verify_admin(user: User = Depends(get_current_user)):
-    """验证系统管理员权限"""
-    if user.user_type != UserType.admin:
+    """
+    验证系统管理员权限
+    
+    系统管理员需要满足：
+    - role_level = 0
+    - user_status = 1 (通过审核)
+    """
+    if user.role_level != 0:
         raise HTTPException(status_code=403, detail="需要系统管理员权限")
+    if user.user_status != 1:
+        raise HTTPException(status_code=403, detail="系统管理员账号未通过审核")
     return user
+
+
+def verify_contractor_or_admin_access(user: User = Depends(get_current_user)):
+    """
+    验证企业管理员或系统管理员权限（用于承包商管理）
+    
+    允许访问的用户：
+    - role_level=0 且 user_status=1 (系统管理员)
+    - role_level=1 (企业管理员)
+    """
+    if user.role_level == 0 and user.user_status == 1:
+        return user  # 系统管理员
+    
+    if user.role_level == 1:
+        if not user.enterprise_staff_id:
+            raise HTTPException(status_code=403, detail="企业管理员未绑定企业")
+        return user  # 企业管理员
+    
+    raise HTTPException(status_code=403, detail="无权访问此资源")
 
 
 @router.post("/", dependencies=[Depends(verify_admin)])
@@ -59,18 +86,40 @@ async def get_contractors(
     keyword: Optional[str] = Query(default=None, description="搜索关键词（公司名称）"),
     page: int = Query(default=1, ge=1, description="页码"),
     page_size: int = Query(default=20, ge=1, le=100, description="每页数量"),
-    user: User = Depends(verify_admin),
+    user: User = Depends(verify_contractor_or_admin_access),
     engine = Depends(get_engine)
 ) -> dict:
     """
     获取承包商列表
     
-    系统管理员可以查看所有承包商，支持按状态、类型筛选和搜索
+    根据用户权限级别过滤：
+    - 系统管理员(role_level=0): 可以查看所有承包商
+    - 企业管理员(role_level=1): 只能查看企业 allowed_contractor_ids 中的承包商
     """
     try:
+        from routes.dependencies import get_user_accessible_contractor_ids
+        
+        # 获取用户可访问的承包商ID列表
+        accessible_contractor_ids = await get_user_accessible_contractor_ids(user, engine)
+        
         async with get_session(engine) as session:
             # 构建筛选条件
             conditions = [ContractorDB.is_deleted == False]
+            
+            # 根据权限过滤承包商ID
+            if accessible_contractor_ids is not None:  # None 表示可以访问所有
+                if accessible_contractor_ids:
+                    conditions.append(ContractorDB.contractor_id.in_(accessible_contractor_ids))
+                else:
+                    # 如果没有可访问的承包商，返回空列表
+                    return {
+                        "items": [],
+                        "total": 0,
+                        "page": page,
+                        "page_size": page_size,
+                        "total_pages": 0
+                    }
+            
             if business_status:
                 conditions.append(ContractorDB.business_status == business_status)
             if company_type:

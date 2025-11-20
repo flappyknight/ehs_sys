@@ -39,6 +39,7 @@ import ApprovalManagement from '@/views/ApprovalManagement.vue'
 import ApprovalEnterprise from '@/views/ApprovalEnterprise.vue'
 import ApprovalContractor from '@/views/ApprovalContractor.vue'
 import ApprovalStaff from '@/views/ApprovalStaff.vue'
+import ApplicationManagement from '@/views/ApplicationManagement.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -212,6 +213,12 @@ const router = createRouter({
           path: 'approval/staff',
           name: 'ApprovalStaff',
           component: ApprovalStaff
+        },
+        // 申请
+        {
+          path: 'application',
+          name: 'ApplicationManagement',
+          component: ApplicationManagement
         },
         // 保留旧路由（兼容性）
         {

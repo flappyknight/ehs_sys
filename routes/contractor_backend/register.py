@@ -53,14 +53,43 @@ async def handle_contractor_registration(register_data: RegisterRequest, engine:
     
     # 实际的数据库写入逻辑
     async with engine.begin() as conn:
-        # 检查用户名是否已存在
-        check_query = text("SELECT user_id FROM users WHERE username = :username")
-        result = await conn.execute(check_query, {"username": register_data.username})
+        # 检查用户名是否已存在（只检查is_deleted=false的记录）
+        username_check_query = text("""
+            SELECT user_id FROM users 
+            WHERE username = :username AND is_deleted = false
+        """)
+        result = await conn.execute(username_check_query, {"username": register_data.username})
         existing_user = result.fetchone()
         
         if existing_user:
             print(f"❌ 注册失败: 用户名 '{register_data.username}' 已存在")
             raise ValueError(f"用户名 '{register_data.username}' 已存在")
+        
+        # 检查手机号是否已存在（只检查is_deleted=false的记录）
+        if register_data.phone:
+            phone_check_query = text("""
+                SELECT user_id FROM users 
+                WHERE phone = :phone AND is_deleted = false
+            """)
+            result = await conn.execute(phone_check_query, {"phone": register_data.phone})
+            existing_phone = result.fetchone()
+            
+            if existing_phone:
+                print(f"❌ 注册失败: 手机号 '{register_data.phone}' 已被使用")
+                raise ValueError(f"手机号 '{register_data.phone}' 已被使用")
+        
+        # 检查邮箱是否已存在（只检查is_deleted=false的记录）
+        if register_data.email:
+            email_check_query = text("""
+                SELECT user_id FROM users 
+                WHERE email = :email AND is_deleted = false
+            """)
+            result = await conn.execute(email_check_query, {"email": register_data.email})
+            existing_email = result.fetchone()
+            
+            if existing_email:
+                print(f"❌ 注册失败: 邮箱 '{register_data.email}' 已被使用")
+                raise ValueError(f"邮箱 '{register_data.email}' 已被使用")
         
         # 插入新用户
         insert_query = text("""

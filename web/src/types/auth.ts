@@ -27,6 +27,11 @@ export interface User {
   user_type: 'admin' | 'enterprise' | 'contractor'
   user_level?: number
   audit_status?: number
+  role_level?: number  // -1 用户还未选择角色, 0 系统管理员, 1 企业管理员, 2 企业员工, 3 承包商管理员, 4 承包商员工
+  user_status?: number  // 用户状态：0未通过审核，1通过审核，2待审核，3审核不通过
+  enterprise_staff_id?: number
+  contractor_staff_id?: number
+  is_deleted?: boolean  // 假删除标记
   enterprise_user?: EnterpriseUser
   contractor_user?: ContractorUser
 }

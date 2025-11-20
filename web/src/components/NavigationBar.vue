@@ -44,8 +44,10 @@ const authStore = useAuthStore()
 const allNavItems: NavItem[] = [
   { key: 'overview', label: '总览', path: '/dashboard' },
   { key: 'enterprise', label: '企业管理', path: '/enterprise' },
-  { key: 'contractor', label: '供应商管理', path: '/contractor' },
-  { key: 'approval', label: '审批', path: '/approval' }
+  { key: 'contractor', label: '承包商管理', path: '/contractor' },
+  { key: 'application', label: '申请', path: '/application' },
+  { key: 'approval', label: '审批', path: '/approval' },
+  { key: 'ticket', label: '工单', path: '/enterprise/tickets' }
 ]
 
 // 检查下拉菜单是否应该高亮
@@ -57,47 +59,75 @@ const isDropdownActive = (item: NavItem): boolean => {
   )
 }
 
-// 获取当前用户角色
-const getCurrentUserRole = (): UserRole => {
-  const user = authStore.user
-  console.log(user)
-  if (!user) return 'enterprise_site_staff'
-
-  if (user.user_type === 'admin') {
-    return 'admin'
-  } else if (user.user_type === 'enterprise' && user.enterprise_user) {
-    return `enterprise_${user.enterprise_user.role_type}` as UserRole
-  } else if (user.user_type === 'contractor' && user.contractor_user) {
-    return `contractor_${user.contractor_user.role_type}` as UserRole
+// 根据 role_level 获取可见的导航项
+const getVisibleNavKeys = (roleLevel: number | undefined, userStatus: number | undefined): string[] => {
+  if (roleLevel === undefined || roleLevel === null) {
+    return ['overview']
   }
 
-  return 'enterprise_site_staff'
-}
+  // role_level: -1 用户还未选择角色（不考虑，进不了页面）
+  // role_level: 0 且 user_status=1 系统管理员（最高权限，能看到所有选项）
+  if (roleLevel === 0 && userStatus === 1) {
+    return ['overview', 'enterprise', 'contractor', 'application', 'approval', 'ticket']
+  }
 
-// 根据用户角色获取可见的导航项
-const getVisibleNavKeys = (role: UserRole): string[] => {
-  // 所有用户都可以看到所有导航项
-  return ['overview', 'enterprise', 'contractor', 'approval']
+  // role_level: 1 企业管理员
+  // 企业管理、承包商管理、审批三个选项
+  if (roleLevel === 1) {
+    return ['overview', 'enterprise', 'contractor', 'approval']
+  }
+
+  // role_level: 2 企业员工
+  // 总览、申请、工单三个选项，去掉审批选项
+  if (roleLevel === 2) {
+    return ['overview', 'application', 'ticket']
+  }
+
+  // role_level: 3 承包商管理员
+  // 企业管理能展示的只能是当前用户对应的供应商，将承包商管理选项替换为申请选项
+  if (roleLevel === 3) {
+    return ['overview', 'enterprise', 'application']
+  }
+
+  // role_level: 4 承包商员工
+  // 只能有申请选项，没有审批、企业管理、承包商管理选项
+  if (roleLevel === 4) {
+    return ['overview', 'application']
+  }
+
+  // 默认只显示总览
+  return ['overview']
 }
 
 // 计算可见的导航项
 const visibleNavItems = computed(() => {
-  return allNavItems
+  const user = authStore.user
+  const roleLevel = user?.role_level
+  const userStatus = user?.user_status
+  const visibleKeys = getVisibleNavKeys(roleLevel, userStatus)
+  
+  return allNavItems.filter(item => visibleKeys.includes(item.key))
 })
 
 // 获取用户角色显示文本
 const getUserRoleText = (): string => {
-  const role = getCurrentUserRole()
-  const roleTexts: Record<UserRole, string> = {
-    admin: '系统管理员',
-    enterprise_manager: '企业管理员',
-    enterprise_approver: '企业审批员',
-    enterprise_site_staff: '企业现场人员',
-    contractor_manager: '承包商管理员',
-    contractor_approver: '承包商审批员',
-    contractor_site_staff: '承包商现场人员'
+  const user = authStore.user
+  if (!user) return '用户'
+
+  const roleLevel = user.role_level
+  if (roleLevel === undefined || roleLevel === null) {
+    return '用户'
   }
-  return roleTexts[role] || '用户'
+
+  const roleTexts: Record<number, string> = {
+    0: '系统管理员',
+    1: '企业管理员',
+    2: '企业员工',
+    3: '承包商管理员',
+    4: '承包商员工'
+  }
+
+  return roleTexts[roleLevel] || '用户'
 }
 
 // 处理登出

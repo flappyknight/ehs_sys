@@ -51,6 +51,8 @@ class EnterpriseInfo(SQLModel, table=True):
     parent_enterprise_id: Optional[int] = Field(default=None, nullable=True)
     subsidiary_ids: Any = Field(default_factory=list, sa_column=Column(JSONB))
     allowed_contractor_ids: Any = Field(default_factory=list, sa_column=Column(JSONB))
+    candidate_contractor_ids: Any = Field(default_factory=list, sa_column=Column(JSONB))
+    contractor_detail_info: Any = Field(default_factory=dict, sa_column=Column(JSONB))
     modification_log: Any = Field(default_factory=list, sa_column=Column(JSONB))
     
     created_at: datetime = Field(default_factory=datetime.now)
@@ -74,6 +76,8 @@ class ContractorInfo(SQLModel, table=True):
     is_deleted: bool = Field(default=False, nullable=False)
     active_enterprise_ids: Any = Field(default_factory=list, sa_column=Column(JSONB))
     inactive_enterprise_ids: Any = Field(default_factory=list, sa_column=Column(JSONB))
+    pending_allowed_ids: Any = Field(default_factory=list, sa_column=Column(JSONB))
+    active_enterprise_detail: Any = Field(default_factory=dict, sa_column=Column(JSONB))
     cooperation_detail_log: Any = Field(default_factory=list, sa_column=Column(JSONB))
     modification_log: Any = Field(default_factory=list, sa_column=Column(JSONB))
 

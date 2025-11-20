@@ -1,5 +1,5 @@
 from datetime import date
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from enum import Enum, IntEnum
 
@@ -54,6 +54,7 @@ class User(BaseModel):
     user_level: Optional[int] = None
     audit_status: Optional[int] = None
     user_status: Optional[int] = None  # 用户状态：0未通过审核，1通过审核，2待审核，3审核不通过
+    role_level: Optional[int] = None  # 角色等级：-1用户还未选择角色, 0系统管理员, 1企业管理员, 2企业员工, 3承包商管理员, 4承包商员工
     temp_token: Optional[str] = None
     relay_name: Optional[str] = None
     sys_only_id: Optional[int] = None
@@ -94,6 +95,8 @@ class EnterpriseInfo(BaseModel):
     parent_enterprise_id: Optional[int] = None
     subsidiary_ids: List[int] = []
     allowed_contractor_ids: List[int] = []
+    candidate_contractor_ids: List[int] = []
+    contractor_detail_info: Dict[str, Any] = {}
     modification_log: List[dict] = []
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
@@ -142,6 +145,8 @@ class ContractorInfo(BaseModel):
     is_deleted: bool = False
     active_enterprise_ids: List[int] = []
     inactive_enterprise_ids: List[int] = []
+    pending_allowed_ids: List[int] = []
+    active_enterprise_detail: Dict[str, Any] = {}
     cooperation_detail_log: List[dict] = []
     modification_log: List[dict] = []
     created_at: Optional[str] = None
@@ -232,12 +237,22 @@ class ContractorProjectResponse(BaseModel):
 class EnterpriseUserListItem(BaseModel):
     """企业用户列表项"""
     user_id: int
+    username: Optional[str] = None
     name: str
     phone: str
     email: str
     position: Optional[str] = None
     role_type: str
+    role_level: Optional[int] = None
+    user_type: Optional[str] = None
+    user_status: Optional[int] = None
     company_name: str
+    enterprise_name: Optional[str] = None
+    enterprise_license_number: Optional[str] = None
+    contractor_name: Optional[str] = None
+    contractor_license_number: Optional[str] = None
+    enterprise_staff_id: Optional[int] = None
+    contractor_staff_id: Optional[int] = None
     dept_id: Optional[int] = None
     status: int
 

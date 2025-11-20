@@ -25,10 +25,43 @@ router = APIRouter()
 
 
 def verify_admin(user: User = Depends(get_current_user)):
-    """验证系统管理员权限"""
-    if user.user_type != UserType.admin:
+    """
+    验证系统管理员权限
+    
+    系统管理员需要满足：
+    - role_level = 0
+    - user_status = 1 (通过审核)
+    """
+    if user.role_level != 0:
         raise HTTPException(status_code=403, detail="需要系统管理员权限")
+    if user.user_status != 1:
+        raise HTTPException(status_code=403, detail="系统管理员账号未通过审核")
     return user
+
+
+def verify_enterprise_or_admin_access(user: User = Depends(get_current_user)):
+    """
+    验证企业管理员或系统管理员权限
+    
+    允许访问的用户：
+    - role_level=0 且 user_status=1 (系统管理员)
+    - role_level=1 (企业管理员)
+    - role_level=3 (承包商管理员)
+    """
+    if user.role_level == 0 and user.user_status == 1:
+        return user  # 系统管理员
+    
+    if user.role_level == 1:
+        if not user.enterprise_staff_id:
+            raise HTTPException(status_code=403, detail="企业管理员未绑定企业")
+        return user  # 企业管理员
+    
+    if user.role_level == 3:
+        if not user.contractor_staff_id:
+            raise HTTPException(status_code=403, detail="承包商管理员未绑定承包商")
+        return user  # 承包商管理员
+    
+    raise HTTPException(status_code=403, detail="无权访问此资源")
 
 
 @router.get("/")
@@ -38,18 +71,41 @@ async def get_enterprises(
     keyword: Optional[str] = Query(default=None, description="搜索关键词（公司名称）"),
     page: int = Query(default=1, ge=1, description="页码"),
     page_size: int = Query(default=20, ge=1, le=100, description="每页数量"),
-    user: User = Depends(verify_admin),
+    user: User = Depends(verify_enterprise_or_admin_access),
     engine = Depends(get_engine)
 ) -> dict:
     """
     获取企业列表
     
-    系统管理员可以查看所有企业，支持按状态、类型筛选和搜索
+    根据用户权限级别过滤：
+    - 系统管理员(role_level=0): 可以查看所有企业
+    - 企业管理员(role_level=1): 只能查看自己的企业
+    - 承包商管理员(role_level=3): 只能查看与自己承包商有合作关系的企业
     """
     try:
+        from routes.dependencies import get_user_accessible_enterprise_ids
+        
+        # 获取用户可访问的企业ID列表
+        accessible_enterprise_ids = await get_user_accessible_enterprise_ids(user, engine)
+        
         async with get_session(engine) as session:
             # 构建筛选条件
             conditions = [EnterpriseDB.is_deleted == False]
+            
+            # 根据权限过滤企业ID
+            if accessible_enterprise_ids is not None:  # None 表示可以访问所有
+                if accessible_enterprise_ids:
+                    conditions.append(EnterpriseDB.enterprise_id.in_(accessible_enterprise_ids))
+                else:
+                    # 如果没有可访问的企业，返回空列表
+                    return {
+                        "items": [],
+                        "total": 0,
+                        "page": page,
+                        "page_size": page_size,
+                        "total_pages": 0
+                    }
+            
             if business_status:
                 conditions.append(EnterpriseDB.business_status == business_status)
             if company_type:

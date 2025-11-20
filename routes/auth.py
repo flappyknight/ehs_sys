@@ -5,10 +5,11 @@ Authentication routes
 from typing import Annotated
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Form
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncEngine
+from typing import Optional
 
 from api.model import Token, User, RegisterRequest
 from config import settings
@@ -25,6 +26,7 @@ router = APIRouter()
 @router.post("/token")
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    user_type: Optional[str] = Form(None),
 ) -> Token:
     """用户登录获取访问令牌 - 包含权限验证逻辑"""
     from main import app  # 延迟导入避免循环依赖
@@ -35,6 +37,7 @@ async def login_for_access_token(
         print("【登录请求】")
         print(f"用户名: {form_data.username}")
         print(f"密码: {'*' * len(form_data.password)}")  # 密码不明文打印
+        print(f"选择的用户类型: {user_type}")
         print(f"登录时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print("=" * 50)
         
@@ -56,6 +59,24 @@ async def login_for_access_token(
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="用户名或密码错误",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # 验证用户类型是否匹配
+        if user_type and user_type != user.user_type:
+            print(f"❌ 登录失败: 用户类型不匹配 - 选择的类型: {user_type}, 实际类型: {user.user_type}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="用户类型不正确，请选择正确的身份类型",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # 检查用户是否被删除
+        if user.is_deleted:
+            print(f"❌ 登录失败: 用户已被删除")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="用户已被删除",
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
@@ -132,6 +153,15 @@ async def register_user(
     print(f"邮箱: {register_data.email}")
     print(f"临时Token: {register_data.temp_token}")
     print("=" * 60 + "\n")
+    
+    # 验证用户名格式
+    import re
+    username_regex = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]{5,}$')
+    if not username_regex.match(register_data.username):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="用户名只能包含英文字母、数字和下划线，至少6个字符，不能以数字开头"
+        )
     
     # 验证用户类型
     if register_data.userType not in ['enterprise', 'contractor', 'admin']:

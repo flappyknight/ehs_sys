@@ -18,9 +18,17 @@ router = APIRouter()
 
 
 def verify_admin(user: User = Depends(get_current_user)):
-    """验证系统管理员权限"""
-    if user.user_type != UserType.admin:
+    """
+    验证系统管理员权限
+    
+    系统管理员需要满足：
+    - role_level = 0
+    - user_status = 1 (通过审核)
+    """
+    if user.role_level != 0:
         raise HTTPException(status_code=403, detail="需要系统管理员权限")
+    if user.user_status != 1:
+        raise HTTPException(status_code=403, detail="系统管理员账号未通过审核")
     return user
 
 
@@ -205,19 +213,57 @@ async def reset_admin_password(
         raise HTTPException(status_code=400, detail=f"重置密码失败: {str(e)}")
 
 
+def verify_approval_access(user: User = Depends(get_current_user)):
+    """
+    验证审批权限
+    
+    允许访问的用户：
+    - role_level=0 且 user_status=1 (系统管理员)
+    - role_level=1 (企业管理员)
+    """
+    # 系统管理员：role_level=0 且 user_status=1
+    if user.role_level == 0:
+        # 检查 user_status，如果是 None 或不是 1，给出明确错误
+        if user.user_status is None:
+            raise HTTPException(
+                status_code=403, 
+                detail="系统管理员账号状态未设置（user_status 为 None），请联系管理员设置账号状态为 1（通过审核）"
+            )
+        elif user.user_status == 1:
+            return user  # 系统管理员（已通过审核）
+        else:
+            raise HTTPException(
+                status_code=403, 
+                detail=f"系统管理员账号未通过审核（当前状态: {user.user_status}，需要状态: 1）。请确保系统管理员的 user_status 字段设置为 1"
+            )
+    
+    # 企业管理员：role_level=1
+    if user.role_level == 1:
+        if not user.enterprise_staff_id:
+            raise HTTPException(status_code=403, detail="企业管理员未绑定企业")
+        return user  # 企业管理员
+    
+    raise HTTPException(
+        status_code=403, 
+        detail=f"无权访问此资源（role_level: {user.role_level}, user_status: {user.user_status}）"
+    )
+
+
 @router.get("/pending/")
 async def get_pending_staff(
     user_type: Optional[str] = Query(default=None, description="用户类型筛选: enterprise, contractor, admin"),
     keyword: Optional[str] = Query(default=None, description="搜索关键词（用户名、姓名）"),
     page: int = Query(default=1, ge=1, description="页码"),
     page_size: int = Query(default=20, ge=1, le=100, description="每页数量"),
-    user: User = Depends(verify_admin),
+    user: User = Depends(verify_approval_access),
     engine = Depends(get_engine)
 ) -> dict:
     """
     获取待审批人员列表
     
-    系统管理员可以查看所有待审批的人员（user_status=2）
+    根据用户权限级别过滤：
+    - 系统管理员(role_level=0): 可以查看所有待审批的人员（user_status=2）
+    - 企业管理员(role_level=1): 只能查看自己企业的待审批人员
     """
     try:
         from db.models import User as UserDB
@@ -226,6 +272,26 @@ async def get_pending_staff(
         async with get_session(engine) as session:
             # 构建查询条件
             conditions = [UserDB.user_status == 2]  # 待审核状态
+            
+            # 根据权限过滤
+            if user.role_level == 1:
+                # 企业管理员：只能查看自己企业的员工
+                if user.enterprise_staff_id:
+                    conditions.append(
+                        and_(
+                            UserDB.user_type == "enterprise",
+                            UserDB.enterprise_staff_id == user.enterprise_staff_id
+                        )
+                    )
+                else:
+                    # 如果没有绑定企业，返回空列表
+                    return {
+                        "items": [],
+                        "total": 0,
+                        "page": page,
+                        "page_size": page_size,
+                        "total_pages": 0
+                    }
             
             if user_type:
                 conditions.append(UserDB.user_type == user_type)
@@ -317,18 +383,21 @@ async def get_pending_staff(
         raise HTTPException(status_code=400, detail=f"获取待审批人员列表失败: {str(e)}")
 
 
-@router.post("/{user_id}/approve/", dependencies=[Depends(verify_admin)])
+@router.post("/{user_id}/approve/", dependencies=[Depends(verify_approval_access)])
 async def approve_staff(
     user_id: int,
     approved: bool = Query(description="true=批准, false=拒绝"),
     comment: Optional[str] = Query(default=None, description="审批意见"),
-    user: User = Depends(verify_admin),
+    current_user: User = Depends(verify_approval_access),
     engine = Depends(get_engine)
 ):
     """
     审批人员
     
-    系统管理员审批人员的申请
+    根据用户权限级别审批：
+    - 系统管理员(role_level=0): 可以审批所有人员
+    - 企业管理员(role_level=1): 只能审批自己企业的员工
+    
     审核通过：user_status 从 2（待审核）改为 1（通过审核）
     审核拒绝：user_status 从 2（待审核）改为 3（审核不通过）
     """
@@ -349,6 +418,11 @@ async def approve_staff(
                 user_obj = user_obj[0] if len(user_obj) > 0 else None
                 if user_obj is None:
                     raise HTTPException(status_code=404, detail="用户不存在")
+            
+            # 权限检查：企业管理员只能审批自己企业的员工
+            if current_user.role_level == 1:
+                if user_obj.user_type != "enterprise" or user_obj.enterprise_staff_id != current_user.enterprise_staff_id:
+                    raise HTTPException(status_code=403, detail="无权审批此用户")
             
             # 检查当前状态
             if user_obj.user_status != 2:
@@ -394,11 +468,15 @@ async def get_all_users(
     contractor_staff_id: Optional[int] = Query(default=None, description="供应商ID筛选"),
     page: int = Query(default=1, ge=1, description="页码"),
     page_size: int = Query(default=20, ge=1, le=100, description="每页数量"),
-    user: User = Depends(verify_admin),
+    current_user: User = Depends(verify_approval_access),
     engine = Depends(get_engine)
 ) -> dict:
     """
-    获取所有用户列表（系统管理员）
+    获取所有用户列表
+    
+    根据用户权限级别过滤：
+    - 系统管理员(role_level=0): 可以查看所有用户
+    - 企业管理员(role_level=1): 只能查看自己企业的所有员工
     
     支持多种过滤条件：
     - user_type: 用户类型
@@ -417,6 +495,28 @@ async def get_all_users(
             # 构建查询条件
             conditions = []
             
+            # 根据权限过滤：系统管理员可以查看所有用户，企业管理员只能查看自己企业的员工
+            if current_user.role_level == 0 and current_user.user_status == 1:
+                # 系统管理员：可以查看所有用户，不需要添加过滤条件
+                pass
+            elif current_user.role_level == 1:
+                # 企业管理员：只能查看自己企业的员工
+                if current_user.enterprise_staff_id:
+                    # 查询 enterprise_staff_id 与当前用户 enterprise_staff_id 相同的所有用户
+                    conditions.append(UserDB.enterprise_staff_id == current_user.enterprise_staff_id)
+                else:
+                    # 如果没有绑定企业，返回空列表
+                    return {
+                        "items": [],
+                        "total": 0,
+                        "page": page,
+                        "page_size": page_size,
+                        "total_pages": 0
+                    }
+            else:
+                # 其他角色无权访问
+                raise HTTPException(status_code=403, detail="无权访问此资源")
+            
             if user_type:
                 conditions.append(UserDB.user_type == user_type)
             
@@ -432,11 +532,13 @@ async def get_all_users(
             if user_id:
                 conditions.append(UserDB.user_id == user_id)
             
-            if enterprise_staff_id:
-                conditions.append(UserDB.enterprise_staff_id == enterprise_staff_id)
-            
-            if contractor_staff_id:
-                conditions.append(UserDB.contractor_staff_id == contractor_staff_id)
+            # 系统管理员可以使用这些筛选条件，企业管理员已经通过上面的条件过滤了
+            if current_user.role_level == 0 and current_user.user_status == 1:
+                if enterprise_staff_id:
+                    conditions.append(UserDB.enterprise_staff_id == enterprise_staff_id)
+                
+                if contractor_staff_id:
+                    conditions.append(UserDB.contractor_staff_id == contractor_staff_id)
             
             # 计算总数
             if conditions:
@@ -524,18 +626,23 @@ async def get_all_users(
         raise HTTPException(status_code=400, detail=f"获取用户列表失败: {str(e)}")
 
 
-@router.put("/{user_id}/status/", dependencies=[Depends(verify_admin)])
+@router.put("/{user_id}/status/", dependencies=[Depends(verify_approval_access)])
 async def update_user_status(
     user_id: int,
-    user_status: int = Query(description="用户状态: 0未通过审核, 1通过审核, 2待审核, 3审核不通过"),
+    user_status: Optional[int] = Query(default=None, description="用户状态: 0未通过审核, 1通过审核, 2待审核, 3审核不通过"),
+    role_level: Optional[int] = Query(default=None, description="角色等级: 1企业管理员, 2企业员工"),
     comment: Optional[str] = Query(default=None, description="审批意见"),
-    user: User = Depends(verify_admin),
+    current_user: User = Depends(verify_approval_access),
     engine = Depends(get_engine)
 ):
     """
-    更新用户状态（系统管理员）
+    更新用户状态
     
-    允许系统管理员直接修改用户的user_status字段
+    根据用户权限级别：
+    - 系统管理员(role_level=0): 可以更新所有用户的状态
+    - 企业管理员(role_level=1): 只能更新自己企业员工的状态
+    
+    允许直接修改用户的user_status字段
     
     审核逻辑：
     1. 如果选择"通过审核"（user_status=1），同时将audit_status设置为2（审核通过）
@@ -576,83 +683,120 @@ async def update_user_status(
                 if user_obj is None:
                     raise HTTPException(status_code=404, detail="用户不存在")
             
-            # 检查管理员状态变更逻辑
-            # 需要检查的情况：
-            # 1. 从"审核通过"（user_status=1）变更为"待审核"（user_status=2）或"审核不通过"（user_status=3）
-            # 2. 从其他状态变更为"审核不通过"（user_status=3）
-            current_status = user_obj.user_status
-            is_changing_from_approved = current_status == 1 and user_status in [2, 3]
-            is_changing_to_rejected = user_status == 3
+            # 权限检查：企业管理员只能更新自己企业的员工
+            if current_user.role_level == 1:
+                if user_obj.user_type != "enterprise" or user_obj.enterprise_staff_id != current_user.enterprise_staff_id:
+                    raise HTTPException(status_code=403, detail="无权更新此用户状态")
             
-            if is_changing_from_approved or is_changing_to_rejected:
-                # 检查是否是系统管理员
-                is_system_admin = user_obj.user_type == "admin"
+            # 处理role_level变更（仅企业管理员）
+            if current_user.role_level == 1 and role_level is not None and role_level != user_obj.role_level:
+                if role_level not in [1, 2]:
+                    raise HTTPException(status_code=400, detail="企业管理员只能设置角色等级为1（企业管理员）或2（企业员工）")
                 
-                if is_system_admin:
-                    # 查找其他通过审核的系统管理员（user_type='admin' 且 user_status=1）
-                    system_admin_query = select(UserDB).where(
+                # 从1变成2时，需要验证当前企业审核通过的管理员不能少于3个
+                if user_obj.role_level == 1 and role_level == 2:
+                    admin_query = select(UserDB).where(
                         and_(
-                            UserDB.user_type == "admin",
-                            UserDB.user_id != user_id,
-                            UserDB.user_status == 1  # 通过审核
+                            UserDB.enterprise_staff_id == current_user.enterprise_staff_id,
+                            UserDB.role_level == 1,
+                            UserDB.user_status == 1,
+                            UserDB.user_id != user_id
                         )
                     )
-                    system_admin_result = await session.exec(system_admin_query)
-                    other_approved_system_admins = system_admin_result.all()
+                    admin_result = await session.exec(admin_query)
+                    other_admins = admin_result.all()
                     
-                    # 必须至少还有3个通过审核的系统管理员
-                    if not other_approved_system_admins or len(other_approved_system_admins) < 3:
+                    if not other_admins or len(other_admins) < 3:
                         raise HTTPException(
                             status_code=400,
-                            detail="不允许操作：系统必须至少保留3个处于'通过审核'状态的系统管理员。当前系统中通过审核的系统管理员数量不足3个。"
+                            detail="不允许操作：当前企业必须至少保留3个处于'通过审核'状态的企业管理员"
                         )
                 
-                # 检查是否是管理员：企业管理员（role_level=1）或承包商管理员（role_level=3）
-                is_enterprise_admin = user_obj.role_level == 1
-                is_contractor_admin = user_obj.role_level == 3
+                user_obj.role_level = role_level
+            
+            # 验证user_status
+            if user_status is not None:
+                if user_status not in [0, 1, 2, 3]:
+                    raise HTTPException(status_code=400, detail="user_status必须是0、1、2或3")
+            
+            # 检查管理员状态变更逻辑（仅在user_status有变更时）
+            if user_status is not None:
+                # 需要检查的情况：
+                # 1. 从"审核通过"（user_status=1）变更为"待审核"（user_status=2）或"审核不通过"（user_status=3）
+                # 2. 从其他状态变更为"审核不通过"（user_status=3）
+                current_status = user_obj.user_status
+                is_changing_from_approved = current_status == 1 and user_status in [2, 3]
+                is_changing_to_rejected = user_status == 3
                 
-                if is_enterprise_admin or is_contractor_admin:
-                    # 构建查询条件：查找相同enterprise_staff_id或contractor_staff_id下的其他管理员
-                    admin_conditions = []
+                if is_changing_from_approved or is_changing_to_rejected:
+                    # 检查是否是系统管理员
+                    is_system_admin = user_obj.user_type == "admin"
                     
-                    if is_enterprise_admin and user_obj.enterprise_staff_id:
-                        # 查找相同enterprise_staff_id下的其他企业管理员（role_level=1）
-                        admin_conditions.append(
+                    if is_system_admin:
+                        # 查找其他通过审核的系统管理员（user_type='admin' 且 user_status=1）
+                        system_admin_query = select(UserDB).where(
                             and_(
-                                UserDB.enterprise_staff_id == user_obj.enterprise_staff_id,
-                                UserDB.role_level == 1,
+                                UserDB.user_type == "admin",
                                 UserDB.user_id != user_id,
                                 UserDB.user_status == 1  # 通过审核
                             )
                         )
-                    
-                    if is_contractor_admin and user_obj.contractor_staff_id:
-                        # 查找相同contractor_staff_id下的其他承包商管理员（role_level=3）
-                        admin_conditions.append(
-                            and_(
-                                UserDB.contractor_staff_id == user_obj.contractor_staff_id,
-                                UserDB.role_level == 3,
-                                UserDB.user_id != user_id,
-                                UserDB.user_status == 1  # 通过审核
-                            )
-                        )
-                    
-                    # 如果找到了符合条件的查询条件，执行查询
-                    if admin_conditions:
-                        admin_query = select(UserDB).where(or_(*admin_conditions))
-                        admin_result = await session.exec(admin_query)
-                        other_approved_admins = admin_result.all()
+                        system_admin_result = await session.exec(system_admin_query)
+                        other_approved_system_admins = system_admin_result.all()
                         
-                        # 如果没有其他通过审核的管理员，不允许操作
-                        if not other_approved_admins or len(other_approved_admins) == 0:
-                            entity_type = "企业" if is_enterprise_admin else "供应商"
+                        # 必须至少还有3个通过审核的系统管理员
+                        if not other_approved_system_admins or len(other_approved_system_admins) < 3:
                             raise HTTPException(
                                 status_code=400,
-                                detail=f"不允许操作：该{entity_type}必须至少有一个管理员处于'通过审核'状态。当前{entity_type}下没有其他通过审核的管理员。"
+                                detail="不允许操作：系统必须至少保留3个处于'通过审核'状态的系统管理员。当前系统中通过审核的系统管理员数量不足3个。"
                             )
+                    
+                    # 检查是否是管理员：企业管理员（role_level=1）或承包商管理员（role_level=3）
+                    is_enterprise_admin = user_obj.role_level == 1
+                    is_contractor_admin = user_obj.role_level == 3
+                    
+                    if is_enterprise_admin or is_contractor_admin:
+                        # 构建查询条件：查找相同enterprise_staff_id或contractor_staff_id下的其他管理员
+                        admin_conditions = []
+                        
+                        if is_enterprise_admin and user_obj.enterprise_staff_id:
+                            # 查找相同enterprise_staff_id下的其他企业管理员（role_level=1）
+                            admin_conditions.append(
+                                and_(
+                                    UserDB.enterprise_staff_id == user_obj.enterprise_staff_id,
+                                    UserDB.role_level == 1,
+                                    UserDB.user_id != user_id,
+                                    UserDB.user_status == 1  # 通过审核
+                                )
+                            )
+                        
+                        if is_contractor_admin and user_obj.contractor_staff_id:
+                            # 查找相同contractor_staff_id下的其他承包商管理员（role_level=3）
+                            admin_conditions.append(
+                                and_(
+                                    UserDB.contractor_staff_id == user_obj.contractor_staff_id,
+                                    UserDB.role_level == 3,
+                                    UserDB.user_id != user_id,
+                                    UserDB.user_status == 1  # 通过审核
+                                )
+                            )
+                        
+                        # 如果找到了符合条件的查询条件，执行查询
+                        if admin_conditions:
+                            admin_query = select(UserDB).where(or_(*admin_conditions))
+                            admin_result = await session.exec(admin_query)
+                            other_approved_admins = admin_result.all()
+                            
+                            # 如果没有其他通过审核的管理员，不允许操作
+                            if not other_approved_admins or len(other_approved_admins) == 0:
+                                entity_type = "企业" if is_enterprise_admin else "供应商"
+                                raise HTTPException(
+                                    status_code=400,
+                                    detail=f"不允许操作：该{entity_type}必须至少有一个管理员处于'通过审核'状态。当前{entity_type}下没有其他通过审核的管理员。"
+                                )
             
             # 如果选择"通过审核"（user_status=1），需要检查企业或承包商的business_status
-            if user_status == 1:
+            if user_status is not None and user_status == 1:
                 # 检查是否是管理员：企业管理员（role_level=1）或承包商管理员（role_level=3）
                 is_enterprise_admin = user_obj.role_level == 1
                 is_contractor_admin = user_obj.role_level == 3
@@ -698,11 +842,12 @@ async def update_user_status(
                             )
             
             # 更新状态
-            user_obj.user_status = user_status
-            
-            # 如果选择"通过审核"（user_status=1），同时更新audit_status为2（审核通过）
-            if user_status == 1:
-                user_obj.audit_status = 2
+            if user_status is not None:
+                user_obj.user_status = user_status
+                
+                # 如果选择"通过审核"（user_status=1），同时更新audit_status为2（审核通过）
+                if user_status == 1:
+                    user_obj.audit_status = 2
             
             user_obj.updated_at = datetime.now()
             

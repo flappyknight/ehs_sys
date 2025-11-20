@@ -275,14 +275,24 @@ export interface DepartmentWithMemberCount {
 
 export interface EnterpriseUserListItem {
   user_id: number
+  username?: string | null
   name: string
   phone: string
   email: string
   position?: string | null
   role_type: string
+  role_level?: number | null
+  user_type?: string | null
+  user_status?: number | null
   company_name: string
+  enterprise_name?: string | null
+  enterprise_license_number?: string | null
+  contractor_name?: string | null
+  contractor_license_number?: string | null
+  enterprise_staff_id?: number | null
+  contractor_staff_id?: number | null
   dept_id?: number | null
-  status: boolean
+  status: number
 }
 
 export interface EnterpriseUserUpdate {
@@ -305,13 +315,36 @@ export class ApiService {
     // 获取token并添加到请求头
     const token = TokenManager.getToken()
 
+    // 合并 headers，确保 Authorization 不会被覆盖
+    // 如果 body 是 FormData，不要设置 Content-Type，让浏览器自动设置
+    const isFormData = options.body instanceof FormData
+    const defaultHeaders: Record<string, string> = {}
+    
+    // 只有在不是 FormData 时才设置 Content-Type
+    if (!isFormData) {
+      defaultHeaders['Content-Type'] = 'application/json'
+    }
+    
+    if (token) {
+      defaultHeaders['Authorization'] = `Bearer ${token}`
+    }
+    
     const config: RequestInit = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` }),
-        ...options.headers,
-      },
       ...options,
+      headers: {
+        ...defaultHeaders,
+        ...options.headers,  // 允许覆盖 Content-Type，但保留 Authorization
+      },
+    }
+    
+    // 确保 Authorization header 不会被覆盖
+    if (token && config.headers) {
+      (config.headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
+    }
+    
+    // 如果是 FormData，确保不设置 Content-Type（让浏览器自动设置 boundary）
+    if (isFormData && config.headers) {
+      delete (config.headers as Record<string, string>)['Content-Type']
     }
 
     const response = await fetch(url, config)
@@ -336,6 +369,10 @@ export class ApiService {
     const formData = new FormData()
     formData.append('username', credentials.username)
     formData.append('password', credentials.password)
+    // 如果提供了用户类型，添加到表单数据中
+    if (credentials.userType) {
+      formData.append('user_type', credentials.userType)
+    }
 
     const result = await this.request<Token>('/token', {
       method: 'POST',
@@ -581,14 +618,31 @@ export class ApiService {
   // 更新用户状态（管理员）
   async updateUserStatus(
     userId: number,
-    userStatus: number,
+    userStatus?: number,
+    roleLevel?: number,
     comment?: string
   ): Promise<{ message: string; user_id: number; user_status: number; comment?: string }> {
     const queryParams = new URLSearchParams()
-    queryParams.append('user_status', userStatus.toString())
+    if (userStatus !== undefined) queryParams.append('user_status', userStatus.toString())
+    if (roleLevel !== undefined) queryParams.append('role_level', roleLevel.toString())
     if (comment) queryParams.append('comment', comment)
     
     return this.request(`/admin/users/${userId}/status/?${queryParams.toString()}`, {
+      method: 'PUT',
+    })
+  }
+
+  // 更新企业用户状态和角色等级（企业人员管理）
+  async updateEnterpriseUserStatus(
+    userId: number,
+    userStatus?: number,
+    roleLevel?: number
+  ): Promise<{ message: string; user_id: number; user_status: number; role_level: number }> {
+    const queryParams = new URLSearchParams()
+    if (userStatus !== undefined) queryParams.append('user_status', userStatus.toString())
+    if (roleLevel !== undefined) queryParams.append('role_level', roleLevel.toString())
+    
+    return this.request(`/enterprise-backend/user-management/users/${userId}/status/?${queryParams.toString()}`, {
       method: 'PUT',
     })
   }
@@ -678,6 +732,85 @@ export class ApiService {
       body: JSON.stringify(userData),
     })
   }
+
+  // 获取企业用户列表（企业人员管理）
+  async getEnterpriseUsers(deptId?: number): Promise<EnterpriseUserListItem[]> {
+    const params = deptId ? `?department_id=${deptId}` : ''
+    return this.request<EnterpriseUserListItem[]>(`/enterprise-backend/user-management/users${params}`)
+  }
+
+  // ===== 承包商合作申请相关接口 =====
+
+  // 获取可申请的企业列表（承包商管理员）
+  async getAvailableEnterprises(params?: {
+    company_name?: string
+    license_number?: string
+  }): Promise<EnterpriseListItem[]> {
+    const queryParams = new URLSearchParams()
+    if (params?.company_name) queryParams.append('company_name', params.company_name)
+    if (params?.license_number) queryParams.append('license_number', params.license_number)
+    
+    const queryString = queryParams.toString()
+    const url = `/contractor-backend/cooperation-request/enterprises${queryString ? '?' + queryString : ''}`
+    return this.request<EnterpriseListItem[]>(url)
+  }
+
+  // 提交合作申请（承包商管理员）
+  async submitCooperationRequest(request: {
+    enterprise_id: number
+    start_time: string
+    end_time: string
+  }): Promise<{ message: string; enterprise_id: number; enterprise_name: string; contractor_id: number; contractor_name: string }> {
+    return this.request('/contractor-backend/cooperation-request/submit', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    })
+  }
+
+  // ===== 企业供应商审批相关接口 =====
+
+  // 获取企业相关的承包商列表（已审核通过和待审核）
+  async getContractorsForApproval(): Promise<ContractorApprovalItem[]> {
+    return this.request<ContractorApprovalItem[]>('/enterprise-backend/contractor-approval/contractors')
+  }
+
+  // 审批承包商合作申请（企业管理员）
+  async approveContractorRequest(
+    contractorId: number,
+    approved: boolean
+  ): Promise<{ message: string; contractor_id: number; approved: boolean }> {
+    return this.request(`/enterprise-backend/contractor-approval/contractors/${contractorId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ approved }),
+    })
+  }
+
+  // 移除已审核通过的承包商（企业管理员）
+  async removeContractor(contractorId: number): Promise<{ message: string; contractor_id: number }> {
+    return this.request(`/enterprise-backend/contractor-approval/contractors/${contractorId}`, {
+      method: 'DELETE',
+    })
+  }
+}
+
+// 承包商审批项类型定义
+export interface ContractorApprovalItem {
+  contractor_id: number
+  company_name: string
+  license_number?: string | null
+  company_type?: string | null
+  company_address?: string | null
+  legal_person?: string | null
+  establish_date?: string | null
+  registered_capital?: number | null
+  business_status: string
+  status: 'approved' | 'pending'
+  detail_info?: {
+    start_time: string
+    end_time: string
+    company_name: string
+    license_number?: string | null
+  } | null
 }
 
 // 导出TokenManager供其他地方使用

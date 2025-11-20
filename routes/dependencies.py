@@ -2,7 +2,7 @@
 共享依赖项
 Shared dependencies for routes
 """
-from typing import Union
+from typing import Union, List, Optional
 from datetime import timedelta, datetime, timezone
 
 from fastapi import Depends, HTTPException, status
@@ -139,4 +139,119 @@ async def get_engine():
     """获取数据库引擎"""
     from main import app  # 延迟导入避免循环依赖
     return app.state.engine
+
+
+def verify_system_admin(user: User = Depends(get_current_user)):
+    """
+    验证系统管理员权限
+    
+    系统管理员需要满足：
+    - role_level = 0
+    - user_status = 1 (通过审核)
+    """
+    if user.role_level != 0:
+        raise HTTPException(status_code=403, detail="需要系统管理员权限")
+    if user.user_status != 1:
+        raise HTTPException(status_code=403, detail="系统管理员账号未通过审核")
+    return user
+
+
+async def get_user_accessible_enterprise_ids(user: User, engine) -> Optional[List[int]]:
+    """
+    获取用户可访问的企业ID列表
+    
+    根据用户的 role_level 返回可访问的企业ID：
+    - role_level=0 且 user_status=1 (系统管理员): 返回 None，表示可以访问所有企业
+    - role_level=1 (企业管理员): 返回 [enterprise_staff_id]
+    - role_level=3 (承包商管理员): 返回 contractor_staff_id 对应的承包商在 contractor_info 表中的 active_enterprise_ids
+    - 其他: 返回空列表
+    """
+    if user.role_level == 0 and user.user_status == 1:
+        return None  # None 表示可以访问所有
+    
+    if user.role_level == 1:
+        # 企业管理员：只能访问自己的企业
+        if user.enterprise_staff_id:
+            return [user.enterprise_staff_id]
+        return []
+    
+    if user.role_level == 3:
+        # 承包商管理员：只能访问与自己承包商有合作关系的企业
+        if not user.contractor_staff_id:
+            return []
+        
+        from db.models import ContractorInfo as ContractorDB
+        from sqlmodel import select
+        from db.connection import get_session
+        
+        async with get_session(engine) as session:
+            query = select(ContractorDB).where(
+                ContractorDB.contractor_id == user.contractor_staff_id
+            )
+            result = await session.exec(query)
+            contractor = result.first()
+            
+            if contractor:
+                # 处理 Row 对象
+                if hasattr(contractor, '__getitem__') and not isinstance(contractor, ContractorDB):
+                    contractor = contractor[0] if len(contractor) > 0 else None
+                
+                if contractor and hasattr(contractor, 'active_enterprise_ids'):
+                    active_ids = contractor.active_enterprise_ids
+                    if isinstance(active_ids, list):
+                        return active_ids
+                    return []
+        return []
+    
+    return []
+
+
+async def get_user_accessible_contractor_ids(user: User, engine) -> Optional[List[int]]:
+    """
+    获取用户可访问的承包商ID列表
+    
+    根据用户的 role_level 返回可访问的承包商ID：
+    - role_level=0 且 user_status=1 (系统管理员): 返回 None，表示可以访问所有承包商
+    - role_level=1 (企业管理员): 返回企业 allowed_contractor_ids 字段中的承包商ID列表
+    - role_level=3 (承包商管理员): 返回 [contractor_staff_id]
+    - 其他: 返回空列表
+    """
+    if user.role_level == 0 and user.user_status == 1:
+        return None  # None 表示可以访问所有
+    
+    if user.role_level == 1:
+        # 企业管理员：只能访问企业 allowed_contractor_ids 中的承包商
+        if not user.enterprise_staff_id:
+            return []
+        
+        from db.models import EnterpriseInfo as EnterpriseDB
+        from sqlmodel import select
+        from db.connection import get_session
+        
+        async with get_session(engine) as session:
+            query = select(EnterpriseDB).where(
+                EnterpriseDB.enterprise_id == user.enterprise_staff_id
+            )
+            result = await session.exec(query)
+            enterprise = result.first()
+            
+            if enterprise:
+                # 处理 Row 对象
+                if hasattr(enterprise, '__getitem__') and not isinstance(enterprise, EnterpriseDB):
+                    enterprise = enterprise[0] if len(enterprise) > 0 else None
+                
+                if enterprise and hasattr(enterprise, 'allowed_contractor_ids'):
+                    allowed_ids = enterprise.allowed_contractor_ids
+                    if isinstance(allowed_ids, list):
+                        return allowed_ids
+                    return []
+        return []
+    
+    if user.role_level == 3:
+        # 承包商管理员：只能访问自己的承包商
+        if user.contractor_staff_id:
+            return [user.contractor_staff_id]
+        return []
+    
+    return []
 

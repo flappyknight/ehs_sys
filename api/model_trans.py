@@ -64,6 +64,8 @@ def convert_user_db_to_response(user_db: db_models.User) -> User:
         user_level=user_db.user_level if hasattr(user_db, 'user_level') else None,
         audit_status=user_db.audit_status if hasattr(user_db, 'audit_status') else None,
         user_status=user_db.user_status if hasattr(user_db, 'user_status') and user_db.user_status is not None else None,
+        role_level=user_db.role_level if hasattr(user_db, 'role_level') and user_db.role_level is not None else None,
+        is_deleted=user_db.is_deleted if hasattr(user_db, 'is_deleted') else False,
         enterprise_user=enterprise_user,
         contractor_user=contractor_user
     )
